@@ -34,7 +34,14 @@ public class TrackingEventConsumer {
         log.info("Received tracking event: {} for employee {} in campaign {}",
                 message.getEventType(), message.getEmployeeId(), message.getCampaignId());
 
-        TrackingEventType eventType = TrackingEventType.valueOf(message.getEventType());
+        TrackingEventType eventType;
+        try {
+            eventType = TrackingEventType.valueOf(message.getEventType());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Ignoring unknown tracking event type '{}' for campaign {} / employee {}",
+                    message.getEventType(), message.getCampaignId(), message.getEmployeeId());
+            return;
+        }
 
         // Idempotency check: prevent duplicate events
         if (trackingEventRepository.existsByCampaignIdAndEmployeeIdAndEventType(

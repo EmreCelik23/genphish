@@ -22,6 +22,7 @@ public class CampaignResponse {
     private String targetUrl;
     private DifficultyLevel difficultyLevel;
     private UUID staticTemplateId;
+    private boolean qrCodeEnabled;
     private CampaignStatus status;
     private LocalDateTime scheduledFor;
     private LocalDateTime createdAt;

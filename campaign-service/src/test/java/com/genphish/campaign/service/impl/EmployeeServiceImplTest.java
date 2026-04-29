@@ -9,7 +9,6 @@ import com.genphish.campaign.entity.Employee;
 import com.genphish.campaign.entity.TrackingEvent;
 import com.genphish.campaign.entity.enums.TrackingEventType;
 import com.genphish.campaign.exception.DuplicateResourceException;
-import com.genphish.campaign.exception.ResourceNotFoundException;
 import com.genphish.campaign.repository.EmployeeRepository;
 import com.genphish.campaign.repository.TrackingEventRepository;
 import com.genphish.campaign.util.FileImportUtil;
@@ -85,7 +84,7 @@ class EmployeeServiceImplTest {
         assertThat(result.getTotalRows()).isEqualTo(2);
         assertThat(result.getImported()).isEqualTo(1);
         assertThat(result.getDuplicates()).isEqualTo(1);
-        assertThat(result.getFailed()).isEqualTo(0);
+        assertThat(result.getFailed()).isZero();
         
         verify(employeeRepository, times(1)).save(any(Employee.class));
     }
@@ -129,6 +128,9 @@ class EmployeeServiceImplTest {
         // Given
         UpdateEmployeeRequest request = new UpdateEmployeeRequest();
         request.setFirstName("Jane");
+        request.setLastName("Doe");
+        request.setEmail("jane.doe@test.com");
+        request.setDepartment("Finance");
         
         when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(testEmployee));
         when(employeeRepository.save(any(Employee.class))).thenReturn(testEmployee);
@@ -139,6 +141,34 @@ class EmployeeServiceImplTest {
         // Then
         assertThat(response.getFirstName()).isEqualTo("Jane");
         verify(employeeRepository).save(testEmployee);
+    }
+
+    @Test
+    void updateEmployee_WhenEmailBelongsToAnotherEmployee_ShouldThrowDuplicateResourceException() {
+        // Given
+        UpdateEmployeeRequest request = new UpdateEmployeeRequest();
+        request.setFirstName("Jane");
+        request.setLastName("Doe");
+        request.setEmail("existing@test.com");
+        request.setDepartment("Finance");
+
+        Employee existingEmployee = Employee.builder()
+                .id(UUID.randomUUID())
+                .companyId(companyId)
+                .email("existing@test.com")
+                .isActive(true)
+                .build();
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(testEmployee));
+        when(employeeRepository.findByEmailAndCompanyId("existing@test.com", companyId))
+                .thenReturn(Optional.of(existingEmployee));
+
+        // When & Then
+        assertThatThrownBy(() -> employeeService.updateEmployee(companyId, employeeId, request))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessageContaining("Employee already exists with email");
+
+        verify(employeeRepository, never()).save(any(Employee.class));
     }
 
     @Test

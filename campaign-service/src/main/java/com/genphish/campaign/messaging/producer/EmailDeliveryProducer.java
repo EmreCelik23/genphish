@@ -107,7 +107,7 @@ public class EmailDeliveryProducer {
                     .emailBodyHtml(personalizedHtml) // Now fully prepared with tracking pixels and personalized links
                     .trackingPixelUrl(trackingPixelUrl)
                     .phishingLinkUrl(phishingLinkUrl)
-                    .qrCodeEnabled(false) // Assuming standard campaign
+                    .qrCodeEnabled(campaign.isQrCodeEnabled())
                     .build();
 
             sendSingleDelivery(event);

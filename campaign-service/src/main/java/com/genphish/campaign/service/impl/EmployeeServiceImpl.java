@@ -122,9 +122,19 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public EmployeeResponse updateEmployee(UUID companyId, UUID employeeId, UpdateEmployeeRequest request) {
         Employee employee = findEmployeeOrThrow(companyId, employeeId);
+
+        String requestedEmail = request.getEmail();
+        if (requestedEmail != null && !requestedEmail.equalsIgnoreCase(employee.getEmail())) {
+            employeeRepository.findByEmailAndCompanyId(requestedEmail, companyId).ifPresent(existing -> {
+                if (!existing.getId().equals(employeeId)) {
+                    throw new DuplicateResourceException("Employee", "email", requestedEmail);
+                }
+            });
+        }
+
         employee.setFirstName(request.getFirstName());
         employee.setLastName(request.getLastName());
-        employee.setEmail(request.getEmail());
+        employee.setEmail(requestedEmail);
         employee.setDepartment(request.getDepartment());
 
         Employee updated = employeeRepository.save(employee);

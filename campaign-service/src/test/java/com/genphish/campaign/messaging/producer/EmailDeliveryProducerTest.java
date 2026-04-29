@@ -101,6 +101,7 @@ class EmailDeliveryProducerTest {
                 .targetingType(TargetingType.ALL_COMPANY)
                 .isAiGenerated(false)
                 .staticTemplateId(templateId)
+                .qrCodeEnabled(true)
                 .build();
 
         Employee employee = Employee.builder()
@@ -142,6 +143,7 @@ class EmailDeliveryProducerTest {
         assertThat(event.getEmailBodyHtml()).contains("Hello Ayse from IT");
         assertThat(event.getEmailBodyHtml()).doesNotContain("{{name}}", "{{department}}", "{{phishing_link}}");
         assertThat(event.getEmailBodyHtml()).contains("<img src=\"http://tracker.local/track/open?c=");
+        assertThat(event.isQrCodeEnabled()).isTrue();
     }
 
     @Test

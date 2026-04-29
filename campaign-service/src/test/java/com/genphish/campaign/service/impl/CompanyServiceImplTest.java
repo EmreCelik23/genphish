@@ -52,6 +52,7 @@ class CompanyServiceImplTest {
         request.setName("Test Company");
         request.setDomain("test.com");
 
+        when(companyRepository.findByName(request.getName())).thenReturn(Optional.empty());
         when(companyRepository.findByDomain(request.getDomain())).thenReturn(Optional.empty());
         when(companyRepository.save(any(Company.class))).thenReturn(testCompany);
 
@@ -64,16 +65,37 @@ class CompanyServiceImplTest {
         assertThat(response.getName()).isEqualTo("Test Company");
         assertThat(response.getDomain()).isEqualTo("test.com");
         
+        verify(companyRepository).findByName("Test Company");
         verify(companyRepository).findByDomain("test.com");
         verify(companyRepository).save(any(Company.class));
+    }
+
+    @Test
+    void createCompany_WhenNameExistsAndActive_ShouldThrowDuplicateResourceException() {
+        // Given
+        CreateCompanyRequest request = new CreateCompanyRequest();
+        request.setName("Test Company");
+        request.setDomain("another.com");
+
+        testCompany.setActive(true);
+        when(companyRepository.findByName("Test Company")).thenReturn(Optional.of(testCompany));
+
+        // When & Then
+        assertThatThrownBy(() -> companyService.createCompany(request))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessageContaining("Company already exists with name: 'Test Company'");
+
+        verify(companyRepository, never()).save(any(Company.class));
     }
 
     @Test
     void createCompany_WhenDomainExistsAndActive_ShouldThrowDuplicateResourceException() {
         // Given
         CreateCompanyRequest request = new CreateCompanyRequest();
+        request.setName("New Name");
         request.setDomain("test.com");
 
+        when(companyRepository.findByName("New Name")).thenReturn(Optional.empty());
         testCompany.setActive(true);
         when(companyRepository.findByDomain("test.com")).thenReturn(Optional.of(testCompany));
 

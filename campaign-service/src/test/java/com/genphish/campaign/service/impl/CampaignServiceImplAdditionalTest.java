@@ -1,5 +1,6 @@
 package com.genphish.campaign.service.impl;
 
+import com.genphish.campaign.dto.request.CreateCampaignRequest;
 import com.genphish.campaign.dto.request.RegenerateAiCampaignRequest;
 import com.genphish.campaign.dto.response.CampaignResponse;
 import com.genphish.campaign.entity.Campaign;
@@ -29,6 +30,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -79,6 +81,55 @@ class CampaignServiceImplAdditionalTest {
         assertThatThrownBy(() -> campaignService.regenerateAiContent(companyId, campaignId, request))
                 .isInstanceOf(InvalidOperationException.class)
                 .hasMessageContaining("Cannot regenerate AI content for a non-AI");
+    }
+
+    @Test
+    void createCampaign_WhenDepartmentTargetingWithoutDepartment_ShouldThrow() {
+        CreateCampaignRequest request = new CreateCampaignRequest();
+        request.setName("Dept Campaign");
+        request.setTargetingType(TargetingType.DEPARTMENT);
+        request.setIsAiGenerated(true);
+        request.setAiPrompt("prompt");
+        request.setTargetUrl("https://example.com");
+        request.setDifficultyLevel(DifficultyLevel.AMATEUR);
+
+        assertThatThrownBy(() -> campaignService.createCampaign(companyId, request))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("Target department is required");
+    }
+
+    @Test
+    void createCampaign_WhenIndividualTargetingWithoutEmployeeIds_ShouldThrow() {
+        CreateCampaignRequest request = new CreateCampaignRequest();
+        request.setName("Individual Campaign");
+        request.setTargetingType(TargetingType.INDIVIDUAL);
+        request.setIsAiGenerated(true);
+        request.setAiPrompt("prompt");
+        request.setTargetUrl("https://example.com");
+        request.setDifficultyLevel(DifficultyLevel.AMATEUR);
+
+        assertThatThrownBy(() -> campaignService.createCampaign(companyId, request))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("At least one employee ID is required");
+    }
+
+    @Test
+    void createCampaign_WhenQrCodeEnabled_ShouldPersistAndReturnEnabledFlag() {
+        CreateCampaignRequest request = new CreateCampaignRequest();
+        request.setName("QR Campaign");
+        request.setTargetingType(TargetingType.ALL_COMPANY);
+        request.setIsAiGenerated(true);
+        request.setAiPrompt("prompt");
+        request.setTargetUrl("https://example.com");
+        request.setDifficultyLevel(DifficultyLevel.AMATEUR);
+        request.setQrCodeEnabled(true);
+
+        when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CampaignResponse response = campaignService.createCampaign(companyId, request);
+
+        assertThat(response.isQrCodeEnabled()).isTrue();
+        verify(aiGenerationRequestProducer).sendGenerationRequest(any(Campaign.class));
     }
 
     @Test

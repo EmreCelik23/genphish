@@ -62,6 +62,10 @@ public class Campaign {
     @Builder.Default
     private long targetCount = 0; // Number of employees targeted (calculated at launch)
 
+    @Column(name = "is_qr_code_enabled")
+    @Builder.Default
+    private boolean qrCodeEnabled = false; // Include QR code instead of direct phishing link
+
     // ── Lifecycle ──
 
     @Enumerated(EnumType.STRING)

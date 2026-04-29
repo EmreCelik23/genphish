@@ -26,6 +26,14 @@ public class CompanyServiceImpl implements CompanyService {
     @Override
     @Transactional
     public CompanyResponse createCompany(CreateCompanyRequest request) {
+        companyRepository.findByName(request.getName()).ifPresent(existing -> {
+            if (existing.isActive()) {
+                throw new DuplicateResourceException("Company", "name", request.getName());
+            } else {
+                throw new DuplicateResourceException("Company", "name", request.getName() + " (Account deactivated, please contact support)");
+            }
+        });
+
         // Check for duplicate domain (including inactive companies)
         companyRepository.findByDomain(request.getDomain()).ifPresent(existing -> {
             if (existing.isActive()) {

@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,63 +44,13 @@ public class CampaignServiceImpl implements CampaignService {
     @Override
     @Transactional
     public CampaignResponse createCampaign(UUID companyId, CreateCampaignRequest request) {
+        validateStaticTemplateIfRequired(request);
+        validateDepartmentTargeting(request);
+        List<UUID> validatedIndividualTargetIds = validateAndResolveIndividualTargets(companyId, request);
 
-        // 1. Validate inputs
-        if (Boolean.FALSE.equals(request.getIsAiGenerated())) {
-            if (request.getStaticTemplateId() == null) {
-                throw new InvalidOperationException("Static template ID is required for non-AI campaigns.");
-            }
-            phishingTemplateRepository.findByIdAndIsActive(request.getStaticTemplateId(), true)
-                    .orElseThrow(() -> new ResourceNotFoundException("PhishingTemplate", "id", request.getStaticTemplateId()));
-        }
-
-        // 2. Build campaign entity
-        Campaign campaign = Campaign.builder()
-                .companyId(companyId)
-                .name(request.getName())
-                .targetingType(request.getTargetingType())
-                .targetDepartment(request.getTargetDepartment())
-                .isAiGenerated(request.getIsAiGenerated())
-                .aiPrompt(request.getAiPrompt())
-                .targetUrl(request.getTargetUrl())
-                .difficultyLevel(request.getDifficultyLevel())
-                .staticTemplateId(request.getStaticTemplateId())
-                .status(CampaignStatus.DRAFT)
-                .scheduledFor(request.getScheduledFor())
-                .build();
-
-        // 3. Persist campaign
-        Campaign savedCampaign = campaignRepository.save(campaign);
-
-        // 4. If individual targeting, validate and save selected employee IDs
-        if (request.getTargetingType() == TargetingType.INDIVIDUAL && request.getTargetEmployeeIds() != null) {
-            List<UUID> validEmployeeIds = employeeRepository.findAllById(request.getTargetEmployeeIds()).stream()
-                    .filter(e -> e.getCompanyId().equals(companyId) && e.isActive())
-                    .map(com.genphish.campaign.entity.Employee::getId)
-                    .toList();
-
-            if (validEmployeeIds.isEmpty()) {
-                throw new InvalidOperationException("No valid active employees found for the provided IDs in your company.");
-            }
-
-            List<CampaignTarget> targets = validEmployeeIds.stream()
-                    .map(empId -> CampaignTarget.builder()
-                            .campaignId(savedCampaign.getId())
-                            .employeeId(empId)
-                            .build())
-                    .toList();
-            campaignTargetRepository.saveAll(targets);
-        }
-
-        // 5. If AI mode, fire Kafka event to Python AI service
-        if (Boolean.TRUE.equals(request.getIsAiGenerated())) {
-            savedCampaign.setStatus(CampaignStatus.GENERATING);
-            campaignRepository.save(savedCampaign);
-            aiGenerationRequestProducer.sendGenerationRequest(savedCampaign);
-            log.info("AI generation request sent for campaign: {}", savedCampaign.getId());
-        } else {
-            log.info("Static campaign created successfully: {} for company: {}", savedCampaign.getId(), companyId);
-        }
+        Campaign savedCampaign = campaignRepository.save(buildCampaignEntity(companyId, request));
+        persistIndividualTargetsIfNeeded(savedCampaign.getId(), request.getTargetingType(), validatedIndividualTargetIds);
+        triggerAiGenerationIfNeeded(savedCampaign, companyId, request.getIsAiGenerated());
 
         return mapToResponse(savedCampaign);
     }
@@ -209,6 +160,87 @@ public class CampaignServiceImpl implements CampaignService {
                 .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", campaignId));
     }
 
+    private void validateStaticTemplateIfRequired(CreateCampaignRequest request) {
+        if (Boolean.FALSE.equals(request.getIsAiGenerated())) {
+            if (request.getStaticTemplateId() == null) {
+                throw new InvalidOperationException("Static template ID is required for non-AI campaigns.");
+            }
+            phishingTemplateRepository.findByIdAndIsActive(request.getStaticTemplateId(), true)
+                    .orElseThrow(() -> new ResourceNotFoundException("PhishingTemplate", "id", request.getStaticTemplateId()));
+        }
+    }
+
+    private void validateDepartmentTargeting(CreateCampaignRequest request) {
+        if (request.getTargetingType() == TargetingType.DEPARTMENT
+                && (request.getTargetDepartment() == null || request.getTargetDepartment().isBlank())) {
+            throw new InvalidOperationException("Target department is required for DEPARTMENT targeting.");
+        }
+    }
+
+    private List<UUID> validateAndResolveIndividualTargets(UUID companyId, CreateCampaignRequest request) {
+        if (request.getTargetingType() != TargetingType.INDIVIDUAL) {
+            return List.of();
+        }
+
+        if (request.getTargetEmployeeIds() == null || request.getTargetEmployeeIds().isEmpty()) {
+            throw new InvalidOperationException("At least one employee ID is required for INDIVIDUAL targeting.");
+        }
+
+        List<UUID> validEmployeeIds = employeeRepository.findAllById(request.getTargetEmployeeIds()).stream()
+                .filter(e -> e.getCompanyId().equals(companyId) && e.isActive())
+                .map(com.genphish.campaign.entity.Employee::getId)
+                .distinct()
+                .toList();
+
+        int requestedDistinctCount = new HashSet<>(request.getTargetEmployeeIds()).size();
+        if (validEmployeeIds.size() != requestedDistinctCount) {
+            throw new InvalidOperationException("Some selected employees are invalid, inactive, or belong to another company.");
+        }
+        return validEmployeeIds;
+    }
+
+    private Campaign buildCampaignEntity(UUID companyId, CreateCampaignRequest request) {
+        return Campaign.builder()
+                .companyId(companyId)
+                .name(request.getName())
+                .targetingType(request.getTargetingType())
+                .targetDepartment(request.getTargetDepartment())
+                .isAiGenerated(request.getIsAiGenerated())
+                .aiPrompt(request.getAiPrompt())
+                .targetUrl(request.getTargetUrl())
+                .difficultyLevel(request.getDifficultyLevel())
+                .staticTemplateId(request.getStaticTemplateId())
+                .qrCodeEnabled(request.isQrCodeEnabled())
+                .status(CampaignStatus.DRAFT)
+                .scheduledFor(request.getScheduledFor())
+                .build();
+    }
+
+    private void persistIndividualTargetsIfNeeded(UUID campaignId, TargetingType targetingType, List<UUID> targetEmployeeIds) {
+        if (targetingType != TargetingType.INDIVIDUAL) {
+            return;
+        }
+
+        List<CampaignTarget> targets = targetEmployeeIds.stream()
+                .map(empId -> CampaignTarget.builder()
+                        .campaignId(campaignId)
+                        .employeeId(empId)
+                        .build())
+                .toList();
+        campaignTargetRepository.saveAll(targets);
+    }
+
+    private void triggerAiGenerationIfNeeded(Campaign campaign, UUID companyId, Boolean isAiGenerated) {
+        if (Boolean.TRUE.equals(isAiGenerated)) {
+            campaign.setStatus(CampaignStatus.GENERATING);
+            campaignRepository.save(campaign);
+            aiGenerationRequestProducer.sendGenerationRequest(campaign);
+            log.info("AI generation request sent for campaign: {}", campaign.getId());
+            return;
+        }
+        log.info("Static campaign created successfully: {} for company: {}", campaign.getId(), companyId);
+    }
+
     private CampaignResponse mapToResponse(Campaign campaign) {
         return CampaignResponse.builder()
                 .id(campaign.getId())
@@ -221,6 +253,7 @@ public class CampaignServiceImpl implements CampaignService {
                 .targetUrl(campaign.getTargetUrl())
                 .difficultyLevel(campaign.getDifficultyLevel())
                 .staticTemplateId(campaign.getStaticTemplateId())
+                .qrCodeEnabled(campaign.isQrCodeEnabled())
                 .status(campaign.getStatus())
                 .scheduledFor(campaign.getScheduledFor())
                 .createdAt(campaign.getCreatedAt())

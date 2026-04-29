@@ -10,6 +10,9 @@ import java.util.UUID;
 
 @Repository
 public interface CompanyRepository extends JpaRepository<Company, UUID> {
+    // Finds a company by name
+    Optional<Company> findByName(String name);
+
     // Finds a company by its domain (e.g., to check if acme.com is already registered)
     Optional<Company> findByDomain(String domain);
 

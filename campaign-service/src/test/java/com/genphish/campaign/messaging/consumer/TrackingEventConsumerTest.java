@@ -61,6 +61,22 @@ class TrackingEventConsumerTest {
     }
 
     @Test
+    void consume_WhenEventTypeInvalid_ShouldIgnoreGracefully() {
+        TrackingEventMessage message = TrackingEventMessage.builder()
+                .campaignId(UUID.randomUUID())
+                .companyId(UUID.randomUUID())
+                .employeeId(UUID.randomUUID())
+                .eventType("NOT_A_REAL_EVENT")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        consumer.consume(message);
+
+        verify(trackingEventRepository, never()).save(org.mockito.ArgumentMatchers.any(TrackingEvent.class));
+        verify(employeeRepository, never()).findById(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void consume_WhenEmailOpened_ShouldPersistEventAndIncreaseRisk() {
         UUID campaignId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
