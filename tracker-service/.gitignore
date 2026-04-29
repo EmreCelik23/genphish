@@ -1,0 +1,23 @@
+# Build artifacts
+/bin/
+/dist/
+/coverage.out
+*.test
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Local logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# IDE files
+.idea/
+.vscode/
+
+# OS artifacts
+.DS_Store

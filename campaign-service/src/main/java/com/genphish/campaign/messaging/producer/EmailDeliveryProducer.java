@@ -79,8 +79,14 @@ public class EmailDeliveryProducer {
 
         // 3. Assemble Fat Events and Push to Kafka
         for (Employee emp : targets) {
-            String trackingPixelUrl = String.format("%s/track/open?c=%s&e=%s", trackerBaseUrl, campaign.getId(), emp.getId());
-            String phishingLinkUrl = String.format("%s/track/click?c=%s&e=%s", trackerBaseUrl, campaign.getId(), emp.getId());
+            String trackingPixelUrl = String.format(
+                    "%s/track/open?c=%s&e=%s&co=%s",
+                    trackerBaseUrl, campaign.getId(), emp.getId(), campaign.getCompanyId()
+            );
+            String phishingLinkUrl = String.format(
+                    "%s/track/click?c=%s&e=%s&co=%s",
+                    trackerBaseUrl, campaign.getId(), emp.getId(), campaign.getCompanyId()
+            );
 
             // Prepare the HTML content by replacing tags like {{name}} or {{department}}.
             String personalizedHtml = emailBodyHtml

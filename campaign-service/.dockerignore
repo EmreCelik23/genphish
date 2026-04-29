@@ -1,0 +1,28 @@
+.git
+.gitignore
+.idea
+.vscode
+*.iml
+.DS_Store
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Maven build outputs
+target/
+build/
+out/
+
+# Local logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Files not needed in image build context
+src/test/
+README.md
+mvnw
+mvnw.cmd

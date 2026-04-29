@@ -1,0 +1,23 @@
+package models
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type TrackingEventType string
+
+const (
+	EventEmailOpened          TrackingEventType = "EMAIL_OPENED"
+	EventLinkClicked          TrackingEventType = "LINK_CLICKED"
+	EventCredentialsSubmitted TrackingEventType = "CREDENTIALS_SUBMITTED"
+)
+
+type TrackingEvent struct {
+	CampaignID uuid.UUID         `json:"campaignId"`
+	EmployeeID uuid.UUID         `json:"employeeId"`
+	CompanyID  uuid.UUID         `json:"companyId"`
+	EventType  TrackingEventType `json:"eventType"`
+	Timestamp  time.Time         `json:"timestamp"`
+}

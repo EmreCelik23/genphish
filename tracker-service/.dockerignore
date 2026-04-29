@@ -1,0 +1,27 @@
+.git
+.gitignore
+.dockerignore
+.idea
+.vscode
+*.iml
+.DS_Store
+
+# Local secrets and env files
+.env
+.env.*
+
+# Docs and local metadata not required for build
+README.md
+
+# Test and coverage artifacts
+*.test
+*_test.go
+coverage.out
+dist/
+bin/
+
+# Local logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
