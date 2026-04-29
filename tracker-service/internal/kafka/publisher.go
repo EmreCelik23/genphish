@@ -18,8 +18,13 @@ type EventPublisher interface {
 	Close() error
 }
 
+type messageWriter interface {
+	WriteMessages(ctx context.Context, msgs ...kafka.Message) error
+	Close() error
+}
+
 type trackingEventPublisher struct {
-	writer *kafka.Writer
+	writer messageWriter
 	logger *log.Logger
 }
 

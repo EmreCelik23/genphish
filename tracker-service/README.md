@@ -84,14 +84,20 @@ Key variables:
 | `KAFKA_BATCH_TIMEOUT_MS` | Kafka writer batch timeout | `5` |
 | `KAFKA_BATCH_SIZE` | Kafka writer batch size | `200` |
 | `KAFKA_ASYNC` | Async Kafka write mode | `true` |
-| `LANDING_PAGE_URL` | Redirect target for click endpoint | `http://localhost:3000/phishing` |
+| `LANDING_PAGE_URL` | Redirect target for click endpoint (`{campaignId}` placeholder supported) | `http://localhost:3000/phishing` |
 | `AWARENESS_PAGE_URL` | Redirect target for submit endpoint | `http://localhost:3000/awareness` |
+
+Example dynamic route config:
+
+```env
+LANDING_PAGE_URL=https://app.example.com/phishing/{campaignId}
+```
 
 ## Local development
 
 ### Prerequisites
 
-- Go `1.22+`
+- Go `1.23+`
 - Kafka cluster reachable from service
 
 Run:

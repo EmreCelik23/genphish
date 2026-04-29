@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -62,7 +63,7 @@ func (h *TrackingHandler) TrackOpen(c *gin.Context) {
 		return
 	}
 
-	h.publish(c.Request.Context(), ids, models.EventEmailOpened)
+	h.publish(c, ids, models.EventEmailOpened)
 	writeTransparentPixel(c)
 }
 
@@ -74,7 +75,7 @@ func (h *TrackingHandler) TrackClick(c *gin.Context) {
 		return
 	}
 
-	h.publish(c.Request.Context(), ids, models.EventLinkClicked)
+	h.publish(c, ids, models.EventLinkClicked)
 	c.Redirect(http.StatusFound, appendTrackingQuery(h.landingURL, ids))
 }
 
@@ -87,12 +88,12 @@ func (h *TrackingHandler) TrackSubmit(c *gin.Context) {
 	}
 
 	// Intentionally ignores credential fields by design. Only event telemetry is emitted.
-	h.publish(c.Request.Context(), ids, models.EventCredentialsSubmitted)
+	h.publish(c, ids, models.EventCredentialsSubmitted)
 	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids))
 }
 
-func (h *TrackingHandler) publish(parentCtx context.Context, ids trackingIDs, eventType models.TrackingEventType) {
-	ctx, cancel := context.WithTimeout(parentCtx, h.publishTimeout)
+func (h *TrackingHandler) publish(c *gin.Context, ids trackingIDs, eventType models.TrackingEventType) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), h.publishTimeout)
 	defer cancel()
 
 	event := models.TrackingEvent{
@@ -101,6 +102,8 @@ func (h *TrackingHandler) publish(parentCtx context.Context, ids trackingIDs, ev
 		CompanyID:  ids.companyID,
 		EventType:  eventType,
 		Timestamp:  time.Now().UTC(),
+		UserAgent:  c.Request.UserAgent(),
+		IPAddress:  c.ClientIP(),
 	}
 
 	if err := h.publisher.PublishTrackingEvent(ctx, event); err != nil {
@@ -159,13 +162,17 @@ func writeTransparentPixel(c *gin.Context) {
 }
 
 func appendTrackingQuery(base string, ids trackingIDs) string {
-	parsed, err := url.Parse(base)
+	withCampaignPath := strings.Replace(base, "{campaignId}", ids.campaignID.String(), 1)
+
+	parsed, err := url.Parse(withCampaignPath)
 	if err != nil {
-		return base
+		return withCampaignPath
 	}
 
 	query := parsed.Query()
-	query.Set("c", ids.campaignID.String())
+	if !strings.Contains(base, "{campaignId}") {
+		query.Set("c", ids.campaignID.String())
+	}
 	query.Set("e", ids.employeeID.String())
 	query.Set("co", ids.companyID.String())
 	parsed.RawQuery = query.Encode()

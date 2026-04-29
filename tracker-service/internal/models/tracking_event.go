@@ -20,4 +20,6 @@ type TrackingEvent struct {
 	CompanyID  uuid.UUID         `json:"companyId"`
 	EventType  TrackingEventType `json:"eventType"`
 	Timestamp  time.Time         `json:"timestamp"`
+	UserAgent  string            `json:"userAgent,omitempty"`
+	IPAddress  string            `json:"ipAddress,omitempty"`
 }

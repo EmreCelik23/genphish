@@ -1,5 +1,6 @@
 package com.genphish.campaign.messaging.event;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,10 +13,13 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class TrackingEventMessage {
     private UUID campaignId;
     private UUID employeeId;
     private UUID companyId;
     private String eventType;          // EMAIL_OPENED, LINK_CLICKED, CREDENTIALS_SUBMITTED
     private LocalDateTime timestamp;
+    private String userAgent;
+    private String ipAddress;
 }
