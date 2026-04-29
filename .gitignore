@@ -1,0 +1,73 @@
+# ==================================
+# Workspace-wide ignore rules
+# ==================================
+
+# OS artifacts
+.DS_Store
+**/.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE / editor files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Private key/certificate material
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs, dumps, runtime temp files
+*.log
+logs/
+*.pid
+*.pid.lock
+*.seed
+hs_err_pid*
+replay_pid*
+
+# Temp/cache folders
+tmp/
+temp/
+.cache/
+*.tmp
+
+# Local Docker overrides
+/docker-compose.override.yml
+
+# Common build artifacts across modules
+**/target/
+**/build/
+**/out/
+**/dist/
+**/coverage/
+**/.coverage
+
+# Python caches (future modules)
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.venv/
+**/venv/
+
+# Node/frontend caches (future modules)
+**/node_modules/
+**/.next/
+**/.nuxt/
+**/.parcel-cache/
+**/.turbo/
+**/.eslintcache

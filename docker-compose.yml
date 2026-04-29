@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL: İlişkisel Veritabanı
+  postgres:
+    image: postgres:16-alpine
+    container_name: genphish-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      # TODO (SaaS Aşaması): Canlı ortamda dışarıya port KESİNLİKLE açılmaz. Sadece iç ağdan erişilecek.
+      - "5432:5432"
+    volumes:
+      # TODO (SaaS Aşaması): Lokal klasörler yerine AWS RDS gibi yönetilen bulut çözümleri kullanılacak.
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - genphish_net
+
+  # 2. MongoDB: NoSQL Veritabanı
+  mongodb:
+    image: mongo:8.0
+    container_name: genphish-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    ports:
+      # TODO (SaaS Aşaması): Dış port kapatılacak, ağ (network) seviyesinde izole edilecek.
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - genphish_net
+
+  # 3. Redis: Önbellekleme (Cache)
+  redis:
+    image: redis:8-alpine
+    container_name: genphish-redis
+    ports:
+      # TODO (SaaS Aşaması): Dış port kapatılacak.
+      - "6379:6379"
+    networks:
+      - genphish_net
+
+  # 4. Zookeeper: Kafka'nın Yönetim Merkezi
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    container_name: genphish-zookeeper
+    environment:
+      # TODO (SaaS Aşaması): 'yes' yerine 'no' yapılıp SASL kimlik doğrulaması (şifreli giriş) eklenecek.
+      ALLOW_ANONYMOUS_LOGIN: 'yes'
+    ports:
+      - "2181:2181"
+    networks:
+      - genphish_net
+
+  # 5. Kafka: Olay Veriyolu (Event Bus)
+  kafka:
+    image: bitnami/kafka:latest
+    container_name: genphish-kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+      # TODO (SaaS Aşaması): Şifresiz iletişim (PLAINTEXT) kapatılıp SSL/TLS sertifikaları kullanılacak.
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # TODO (SaaS Aşaması): 'yes' yerine 'no' yapılacak.
+      ALLOW_PLAINTEXT_LISTENER: 'yes'
+    ports:
+      - "9092:9092"
+    networks:
+      - genphish_net
+
+volumes:
+  postgres_data:
+  mongodb_data:
+
+networks:
+  genphish_net:
+    driver: bridge
