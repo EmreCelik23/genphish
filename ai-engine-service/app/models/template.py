@@ -11,7 +11,7 @@ class TemplateDocument(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(default=None, alias="id")
-    campaign_id: UUID = Field(alias="campaignId")
+    template_id: UUID = Field(alias="templateId")
     company_id: UUID = Field(alias="companyId")
     prompt: str = ""
     target_url: str = ""
@@ -36,7 +36,7 @@ class TemplateDocument(BaseModel):
 
 class StoredTemplateView(BaseModel):
     id: str = Field(alias="id")
-    campaign_id: UUID = Field(alias="campaignId")
+    template_id: UUID = Field(alias="templateId")
     company_id: UUID = Field(alias="companyId")
     language_code: LanguageCode = Field(default=LanguageCode.TR, alias="languageCode")
     subject: str

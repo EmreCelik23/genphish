@@ -59,7 +59,7 @@ def normalize_optional_text(value: str | None) -> str | None:
 class AiGenerationRequestEvent(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    campaign_id: UUID = Field(alias="campaignId")
+    template_id: UUID = Field(alias="templateId")
     company_id: UUID = Field(alias="companyId")
     prompt: str | None = None
     target_url: str | None = Field(default=None, alias="targetUrl")
@@ -107,7 +107,7 @@ class AiGenerationRequestEvent(BaseModel):
 class AiGenerationResponseEvent(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    campaign_id: UUID = Field(alias="campaignId")
+    template_id: UUID = Field(alias="templateId")
     mongo_template_id: str | None = Field(default=None, alias="mongoTemplateId")
     status: AiGenerationStatus
     error_message: str | None = Field(default=None, alias="errorMessage")
@@ -117,7 +117,7 @@ class AiGenerationResponseEvent(BaseModel):
 class ManualGenerateRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    campaign_id: UUID = Field(alias="campaignId")
+    template_id: UUID = Field(alias="templateId")
     company_id: UUID = Field(alias="companyId")
     prompt: str
     target_url: str | None = Field(default=None, alias="targetUrl")
@@ -165,13 +165,13 @@ class ManualGenerateRequest(BaseModel):
 class CloneTemplateRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    campaign_id: UUID = Field(alias="campaignId")
+    template_id: UUID = Field(alias="templateId")
     company_id: UUID = Field(alias="companyId")
 
 
 class TemplateCreatedResponse(BaseModel):
     template_id: str = Field(alias="templateId")
-    campaign_id: UUID = Field(alias="campaignId")
+    template_id: UUID = Field(alias="templateId")
     status: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), alias="createdAt")
 

@@ -1,17 +1,15 @@
 package com.genphish.campaign.dto.request;
 
 import jakarta.validation.constraints.FutureOrPresent;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDateTime;
 
 @Data
-public class CloneCampaignRequest {
+public class ScheduleCampaignRequest {
 
-    @NotBlank(message = "Cloned campaign name is required")
-    private String name;
-
+    @NotNull(message = "Scheduled time is required")
     @FutureOrPresent(message = "Scheduled time must be in the present or future")
     private LocalDateTime scheduledFor;
 }

@@ -1,17 +1,16 @@
 package com.genphish.campaign.service.impl;
 
 import com.genphish.campaign.dto.request.CreateCampaignRequest;
-import com.genphish.campaign.dto.request.RegenerateAiCampaignRequest;
+import com.genphish.campaign.dto.request.ScheduleCampaignRequest;
 import com.genphish.campaign.dto.response.CampaignResponse;
 import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.CampaignTarget;
+import com.genphish.campaign.entity.PhishingTemplate;
 import com.genphish.campaign.entity.enums.CampaignStatus;
-import com.genphish.campaign.entity.enums.DifficultyLevel;
-import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.TargetingType;
+import com.genphish.campaign.entity.enums.TemplateStatus;
 import com.genphish.campaign.exception.InvalidOperationException;
 import com.genphish.campaign.exception.ResourceNotFoundException;
-import com.genphish.campaign.messaging.producer.AiGenerationRequestProducer;
 import com.genphish.campaign.messaging.producer.EmailDeliveryProducer;
 import com.genphish.campaign.repository.CampaignRepository;
 import com.genphish.campaign.repository.CampaignTargetRepository;
@@ -37,7 +36,6 @@ public class CampaignServiceImpl implements CampaignService {
     private final CampaignTargetRepository campaignTargetRepository;
     private final EmployeeRepository employeeRepository;
     private final PhishingTemplateRepository phishingTemplateRepository;
-    private final AiGenerationRequestProducer aiGenerationRequestProducer;
     private final EmailDeliveryProducer emailDeliveryProducer;
 
     @org.springframework.beans.factory.annotation.Value("${app.campaign.high-risk-threshold:70.0}")
@@ -46,14 +44,14 @@ public class CampaignServiceImpl implements CampaignService {
     @Override
     @Transactional
     public CampaignResponse createCampaign(UUID companyId, CreateCampaignRequest request) {
-        validateStaticTemplateIfRequired(request);
+        validateTemplate(companyId, request.getTemplateId());
         validateDepartmentTargeting(request);
         List<UUID> validatedIndividualTargetIds = validateAndResolveIndividualTargets(companyId, request);
 
         Campaign savedCampaign = campaignRepository.save(buildCampaignEntity(companyId, request));
         persistIndividualTargetsIfNeeded(savedCampaign.getId(), request.getTargetingType(), validatedIndividualTargetIds);
-        triggerAiGenerationIfNeeded(savedCampaign, companyId, request.getIsAiGenerated());
 
+        log.info("Campaign created successfully: {} for company: {}", savedCampaign.getId(), companyId);
         return mapToResponse(savedCampaign);
     }
 
@@ -63,51 +61,6 @@ public class CampaignServiceImpl implements CampaignService {
         return mapToResponse(campaign);
     }
 
-    @Override
-    @Transactional
-    public CampaignResponse regenerateAiContent(UUID companyId, UUID campaignId, RegenerateAiCampaignRequest request) {
-        Campaign campaign = findCampaignOrThrow(companyId, campaignId);
-
-        if (!Boolean.TRUE.equals(campaign.isAiGenerated())) {
-            throw new InvalidOperationException("Cannot regenerate AI content for a non-AI (static) campaign.");
-        }
-
-        if (campaign.getStatus() != CampaignStatus.DRAFT && campaign.getStatus() != CampaignStatus.FAILED && campaign.getStatus() != CampaignStatus.SCHEDULED) {
-            throw new InvalidOperationException("Cannot regenerate AI content for a campaign that is " + campaign.getStatus());
-        }
-
-        // Update prompt if provided
-        if (request.getNewPrompt() != null && !request.getNewPrompt().isBlank()) {
-            campaign.setAiPrompt(request.getNewPrompt());
-        }
-        if (request.getLanguageCode() != null && !request.getLanguageCode().isBlank()) {
-            campaign.setAiLanguageCode(normalizeLanguageCode(request.getLanguageCode()));
-        }
-        if (request.getAiProvider() != null && !request.getAiProvider().isBlank()) {
-            campaign.setAiProvider(normalizeProvider(request.getAiProvider()));
-        }
-        if (request.getAiModel() != null && !request.getAiModel().isBlank()) {
-            campaign.setAiModel(request.getAiModel().trim());
-        }
-        if (request.getAllowFallbackTemplate() != null) {
-            campaign.setAllowFallbackTemplate(request.getAllowFallbackTemplate());
-        }
-
-        // Set status to generating
-        campaign.setStatus(CampaignStatus.GENERATING);
-        Campaign savedCampaign = campaignRepository.save(campaign);
-
-        // Fire Kafka event to Python AI service
-        aiGenerationRequestProducer.sendGenerationRequest(
-                savedCampaign, 
-                request.getScope(), 
-                savedCampaign.getMongoTemplateId()
-        );
-        
-        log.info("AI regeneration request sent for campaign: {} with scope: {}", savedCampaign.getId(), request.getScope());
-
-        return mapToResponse(savedCampaign);
-    }
 
     @Override
     public List<CampaignResponse> getAllCampaigns(UUID companyId) {
@@ -121,14 +74,9 @@ public class CampaignServiceImpl implements CampaignService {
     public CampaignResponse startCampaign(UUID companyId, UUID campaignId) {
         Campaign campaign = findCampaignOrThrow(companyId, campaignId);
 
-        // Can only start from DRAFT (static) or SCHEDULED states
-        if (campaign.getStatus() != CampaignStatus.DRAFT && campaign.getStatus() != CampaignStatus.SCHEDULED) {
-            throw new InvalidOperationException("Campaign can only be started from DRAFT or SCHEDULED status. Current: " + campaign.getStatus());
-        }
-
-        // AI campaigns must have content generated first
-        if (campaign.isAiGenerated() && campaign.getMongoTemplateId() == null) {
-            throw new InvalidOperationException("AI campaign content has not been generated yet. Wait for AI processing to complete.");
+        // Can only start from READY or SCHEDULED states
+        if (campaign.getStatus() != CampaignStatus.READY && campaign.getStatus() != CampaignStatus.SCHEDULED) {
+            throw new InvalidOperationException("Campaign can only be started from READY or SCHEDULED status. Current: " + campaign.getStatus());
         }
 
         // Calculate and save the target count before launching
@@ -151,14 +99,46 @@ public class CampaignServiceImpl implements CampaignService {
 
     @Override
     @Transactional
+    public CampaignResponse scheduleCampaign(UUID companyId, UUID campaignId, ScheduleCampaignRequest request) {
+        Campaign campaign = findCampaignOrThrow(companyId, campaignId);
+
+        if (campaign.getStatus() != CampaignStatus.READY) {
+            throw new InvalidOperationException("Campaign can only be scheduled from READY status. Current: " + campaign.getStatus());
+        }
+
+        campaign.setScheduledFor(request.getScheduledFor());
+        campaign.setStatus(CampaignStatus.SCHEDULED);
+        campaignRepository.save(campaign);
+
+        log.info("Campaign scheduled: {} for {}", campaignId, request.getScheduledFor());
+        return mapToResponse(campaign);
+    }
+
+    @Override
+    @Transactional
+    public CampaignResponse cancelCampaign(UUID companyId, UUID campaignId) {
+        Campaign campaign = findCampaignOrThrow(companyId, campaignId);
+
+        if (campaign.getStatus() != CampaignStatus.SCHEDULED && campaign.getStatus() != CampaignStatus.IN_PROGRESS) {
+            throw new InvalidOperationException("Only SCHEDULED or IN_PROGRESS campaigns can be canceled. Current status: " + campaign.getStatus());
+        }
+
+        campaign.setStatus(CampaignStatus.CANCELED);
+        campaignRepository.save(campaign);
+
+        log.info("Campaign canceled (Emergency Stop): {}", campaignId);
+        return mapToResponse(campaign);
+    }
+
+    @Override
+    @Transactional
     public void deleteCampaign(UUID companyId, UUID campaignId) {
         Campaign campaign = findCampaignOrThrow(companyId, campaignId);
 
-        if (campaign.getStatus() == CampaignStatus.IN_PROGRESS) {
-            throw new InvalidOperationException("Cannot delete an active campaign. Complete or pause it first.");
+        if (campaign.getStatus() == CampaignStatus.IN_PROGRESS || campaign.getStatus() == CampaignStatus.SCHEDULED) {
+            throw new InvalidOperationException("Cannot delete an active or scheduled campaign. Please cancel it first.");
         }
 
-        // Soft delete: preserve data for analytics, just hide from UI
         campaign.setDeleted(true);
         campaign.setDeletedAt(java.time.LocalDateTime.now());
         campaignRepository.save(campaign);
@@ -174,16 +154,16 @@ public class CampaignServiceImpl implements CampaignService {
                 .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", campaignId));
     }
 
-    private void validateStaticTemplateIfRequired(CreateCampaignRequest request) {
-        if (Boolean.FALSE.equals(request.getIsAiGenerated())) {
-            if (request.isAllowFallbackTemplate()) {
-                throw new InvalidOperationException("allowFallbackTemplate can only be used for AI campaigns.");
-            }
-            if (request.getStaticTemplateId() == null) {
-                throw new InvalidOperationException("Static template ID is required for non-AI campaigns.");
-            }
-            phishingTemplateRepository.findByIdAndIsActive(request.getStaticTemplateId(), true)
-                    .orElseThrow(() -> new ResourceNotFoundException("PhishingTemplate", "id", request.getStaticTemplateId()));
+    private void validateTemplate(UUID companyId, UUID templateId) {
+        PhishingTemplate template = phishingTemplateRepository.findByIdAndIsActive(templateId, true)
+                .orElseThrow(() -> new ResourceNotFoundException("PhishingTemplate", "id", templateId));
+        
+        if (template.getCompanyId() != null && !template.getCompanyId().equals(companyId)) {
+             throw new ResourceNotFoundException("PhishingTemplate", "id", templateId);
+        }
+        
+        if (template.getStatus() != TemplateStatus.READY) {
+            throw new InvalidOperationException("Cannot create a campaign with a template that is not READY. Current status: " + template.getStatus());
         }
     }
 
@@ -217,27 +197,14 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     private Campaign buildCampaignEntity(UUID companyId, CreateCampaignRequest request) {
-        DifficultyLevel difficultyLevel = request.getDifficultyLevel() != null
-                ? request.getDifficultyLevel()
-                : DifficultyLevel.PROFESSIONAL;
-        boolean aiCampaign = Boolean.TRUE.equals(request.getIsAiGenerated());
         return Campaign.builder()
                 .companyId(companyId)
                 .name(request.getName())
                 .targetingType(request.getTargetingType())
                 .targetDepartment(request.getTargetDepartment())
-                .isAiGenerated(aiCampaign)
-                .aiPrompt(request.getAiPrompt())
-                .targetUrl(request.getTargetUrl())
-                .difficultyLevel(difficultyLevel)
-                .aiLanguageCode(normalizeLanguageCode(request.getLanguageCode()))
-                .aiProvider(normalizeProvider(request.getAiProvider()))
-                .aiModel(normalizeOptional(request.getAiModel()))
-                .allowFallbackTemplate(aiCampaign && request.isAllowFallbackTemplate())
-                .staticTemplateId(request.getStaticTemplateId())
+                .templateId(request.getTemplateId())
                 .qrCodeEnabled(request.isQrCodeEnabled())
-                .status(resolveInitialStatus(request))
-                .scheduledFor(request.getScheduledFor())
+                .status(CampaignStatus.READY) // Since the template is already READY, campaign is READY immediately
                 .build();
     }
 
@@ -255,15 +222,6 @@ public class CampaignServiceImpl implements CampaignService {
         campaignTargetRepository.saveAll(targets);
     }
 
-    private void triggerAiGenerationIfNeeded(Campaign campaign, UUID companyId, Boolean isAiGenerated) {
-        if (Boolean.TRUE.equals(isAiGenerated)) {
-            aiGenerationRequestProducer.sendGenerationRequest(campaign);
-            log.info("AI generation request sent for campaign: {}", campaign.getId());
-            return;
-        }
-        log.info("Static campaign created successfully: {} for company: {}", campaign.getId(), companyId);
-    }
-
     private CampaignResponse mapToResponse(Campaign campaign) {
         return CampaignResponse.builder()
                 .id(campaign.getId())
@@ -271,55 +229,11 @@ public class CampaignServiceImpl implements CampaignService {
                 .name(campaign.getName())
                 .targetingType(campaign.getTargetingType())
                 .targetDepartment(campaign.getTargetDepartment())
-                .isAiGenerated(campaign.isAiGenerated())
-                .aiPrompt(campaign.getAiPrompt())
-                .targetUrl(campaign.getTargetUrl())
-                .difficultyLevel(campaign.getDifficultyLevel())
-                .languageCode(campaign.getAiLanguageCode())
-                .aiProvider(campaign.getAiProvider())
-                .aiModel(campaign.getAiModel())
-                .allowFallbackTemplate(campaign.isAllowFallbackTemplate())
-                .fallbackContentUsed(campaign.isFallbackContentUsed())
-                .staticTemplateId(campaign.getStaticTemplateId())
+                .templateId(campaign.getTemplateId())
                 .qrCodeEnabled(campaign.isQrCodeEnabled())
                 .status(campaign.getStatus())
                 .scheduledFor(campaign.getScheduledFor())
                 .createdAt(campaign.getCreatedAt())
                 .build();
-    }
-
-    private CampaignStatus resolveInitialStatus(CreateCampaignRequest request) {
-        if (Boolean.TRUE.equals(request.getIsAiGenerated())) {
-            return CampaignStatus.GENERATING;
-        }
-        return request.getScheduledFor() != null ? CampaignStatus.SCHEDULED : CampaignStatus.DRAFT;
-    }
-
-    private LanguageCode normalizeLanguageCode(String value) {
-        return LanguageCode.fromNullable(value);
-    }
-
-    private String normalizeProvider(String value) {
-        String normalized = normalizeOptional(value);
-        if (normalized == null) {
-            return null;
-        }
-
-        String lower = normalized.toLowerCase();
-        return switch (lower) {
-            case "gpt", "chatgpt", "openai" -> "openai";
-            case "claude", "anthropic" -> "anthropic";
-            case "google", "google-genai", "gemini" -> "gemini";
-            case "stub" -> "stub";
-            default -> lower;
-        };
-    }
-
-    private String normalizeOptional(String value) {
-        if (value == null) {
-            return null;
-        }
-        String normalized = value.trim();
-        return normalized.isBlank() ? null : normalized;
     }
 }

@@ -36,7 +36,7 @@ class GenerationService:
         parts = self._enforce_template_contract(request, existing, parts)
 
         template = TemplateDocument(
-            campaignId=request.campaign_id,
+            templateId=request.template_id,
             companyId=request.company_id,
             prompt=request.prompt or "",
             targetUrl=request.target_url or "",
@@ -72,14 +72,14 @@ class GenerationService:
             self._logger.warning(
                 "AI generation timeout after %.1fs for campaign=%s.",
                 self._generation_timeout_seconds,
-                request.campaign_id,
+                request.template_id,
             )
             if not should_allow_fallback:
                 raise RuntimeError("AI generation timed out and fallback template is disabled.") from exc
         except Exception as exc:
             self._logger.exception(
                 "AI generation error for campaign=%s.",
-                request.campaign_id,
+                request.template_id,
             )
             if not should_allow_fallback:
                 raise RuntimeError("AI generation failed and fallback template is disabled.") from exc

@@ -1,6 +1,9 @@
 package com.genphish.campaign.entity;
 
 import com.genphish.campaign.entity.enums.DifficultyLevel;
+import com.genphish.campaign.entity.enums.LanguageCode;
+import com.genphish.campaign.entity.enums.TemplateStatus;
+import com.genphish.campaign.entity.enums.TemplateType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,24 +23,60 @@ public class PhishingTemplate {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "company_id")
+    private UUID companyId; // Null for global static templates
+
     @Column(nullable = false)
     private String name; // e.g., "Microsoft 365 Password Reset"
 
     @Column(nullable = false)
-    private String category; // e.g., "IT", "HR", "Finance"
+    private String category; // e.g., "IT", "HR", "Finance", "AI Generated"
 
-    @Column(name = "email_subject", nullable = false)
-    private String emailSubject; // Static email subject line
+    @Enumerated(EnumType.STRING)
+    @Column(name = "template_type", nullable = false)
+    @Builder.Default
+    private TemplateType type = TemplateType.STATIC;
 
-    @Column(name = "email_body", nullable = false, columnDefinition = "TEXT")
-    private String emailBody; // Static email HTML body (supports {{name}}, {{department}} placeholders)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "template_status", nullable = false)
+    @Builder.Default
+    private TemplateStatus status = TemplateStatus.READY;
+
+    // ── Content ──
+
+    @Column(name = "email_subject")
+    private String emailSubject; // Nullable while generating
+
+    @Column(name = "email_body", columnDefinition = "TEXT")
+    private String emailBody; // Nullable while generating
 
     @Column(name = "landing_page_html", columnDefinition = "TEXT")
-    private String landingPageHtml; // Static fake login page HTML
+    private String landingPageHtml; // Nullable while generating
+
+    // ── AI Generation Metadata ──
 
     @Enumerated(EnumType.STRING)
     @Column(name = "difficulty_level")
     private DifficultyLevel difficultyLevel; // Template difficulty
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "language_code")
+    private LanguageCode languageCode; 
+
+    @Column(name = "ai_prompt", columnDefinition = "TEXT")
+    private String prompt; 
+
+    @Column(name = "target_url")
+    private String targetUrl; 
+
+    @Column(name = "mongo_template_id")
+    private String mongoTemplateId; 
+
+    @Column(name = "fallback_content_used")
+    @Builder.Default
+    private boolean fallbackContentUsed = false;
+
+    // ── Lifecycle ──
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

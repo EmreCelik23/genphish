@@ -1,8 +1,6 @@
 package com.genphish.campaign.dto.response;
 
 import com.genphish.campaign.entity.enums.CampaignStatus;
-import com.genphish.campaign.entity.enums.DifficultyLevel;
-import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.TargetingType;
 import lombok.Builder;
 import lombok.Data;
@@ -18,16 +16,7 @@ public class CampaignResponse {
     private String name;
     private TargetingType targetingType;
     private String targetDepartment;
-    private boolean isAiGenerated;
-    private String aiPrompt;
-    private String targetUrl;
-    private DifficultyLevel difficultyLevel;
-    private LanguageCode languageCode;
-    private String aiProvider;
-    private String aiModel;
-    private boolean allowFallbackTemplate;
-    private boolean fallbackContentUsed;
-    private UUID staticTemplateId;
+    private UUID templateId;
     private boolean qrCodeEnabled;
     private CampaignStatus status;
     private LocalDateTime scheduledFor;

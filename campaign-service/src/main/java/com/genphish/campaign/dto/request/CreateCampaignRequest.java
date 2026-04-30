@@ -1,14 +1,10 @@
 package com.genphish.campaign.dto.request;
 
-import com.genphish.campaign.entity.enums.DifficultyLevel;
-import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.TargetingType;
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,31 +23,12 @@ public class CreateCampaignRequest {
 
     private List<UUID> targetEmployeeIds; // Required when targetingType = INDIVIDUAL
 
-    // ── AI vs Static ──
+    // ── Content ──
 
-    @NotNull(message = "AI generation mode must be specified")
-    private Boolean isAiGenerated; // true = AI mode, false = static template
+    @NotNull(message = "Template ID must be specified")
+    private UUID templateId; // Reference to a PhishingTemplate (Static or AI generated)
 
-    // AI mode fields (required when isAiGenerated = true)
-    private String aiPrompt; // Scenario description for the LLM
-    private String targetUrl; // URL to clone for landing page
-    private String languageCode = LanguageCode.TR.name(); // Optional: TR or EN (default TR)
-    private String aiProvider; // Optional: openai, anthropic, gemini, stub
-    private String aiModel; // Optional: provider-specific model override
-    private boolean allowFallbackTemplate = false; // Optional: AI fail olursa fallback template kullan
-
-    @NotNull(message = "Difficulty level must be specified")
-    private DifficultyLevel difficultyLevel = DifficultyLevel.PROFESSIONAL; // AMATEUR or PROFESSIONAL (default PROFESSIONAL)
-
-    // Static mode field (required when isAiGenerated = false)
-    private UUID staticTemplateId; // Reference to pre-built template
-
-    // ── Scheduling ──
-
-    @FutureOrPresent(message = "Scheduled time must be in the present or future")
-    private LocalDateTime scheduledFor; // Null = start immediately when triggered
-
-    // ── QR Code (Quishing) ──
+    // ── Extras ──
 
     private boolean qrCodeEnabled; // Include QR code instead of link in email
 }

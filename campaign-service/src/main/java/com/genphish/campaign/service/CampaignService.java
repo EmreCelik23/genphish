@@ -1,7 +1,7 @@
 package com.genphish.campaign.service;
 
 import com.genphish.campaign.dto.request.CreateCampaignRequest;
-import com.genphish.campaign.dto.request.RegenerateAiCampaignRequest;
+import com.genphish.campaign.dto.request.ScheduleCampaignRequest;
 import com.genphish.campaign.dto.response.CampaignResponse;
 
 import java.util.List;
@@ -13,11 +13,13 @@ public interface CampaignService {
 
     CampaignResponse getCampaignById(UUID companyId, UUID campaignId);
 
-    CampaignResponse regenerateAiContent(UUID companyId, UUID campaignId, RegenerateAiCampaignRequest request);
-
     List<CampaignResponse> getAllCampaigns(UUID companyId);
 
     CampaignResponse startCampaign(UUID companyId, UUID campaignId);
+
+    CampaignResponse scheduleCampaign(UUID companyId, UUID campaignId, ScheduleCampaignRequest request);
+
+    CampaignResponse cancelCampaign(UUID companyId, UUID campaignId);
 
     void deleteCampaign(UUID companyId, UUID campaignId);
 }

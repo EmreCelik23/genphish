@@ -1,6 +1,8 @@
 package com.genphish.campaign.service.impl;
 
+import com.genphish.campaign.dto.response.CampaignFunnelResponse;
 import com.genphish.campaign.dto.response.DashboardResponse;
+import com.genphish.campaign.dto.response.TrackingEventResponse;
 import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.Employee;
 import com.genphish.campaign.entity.TrackingEvent;
@@ -150,5 +152,69 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 companyId, totalEmployees, activeCampaigns);
                 
         return response;
+    }
+
+    @Override
+    public CampaignFunnelResponse getCampaignFunnel(UUID companyId, UUID campaignId) {
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .filter(c -> c.getCompanyId().equals(companyId) && !c.isDeleted())
+                .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
+
+        List<TrackingEvent> events = trackingEventRepository.findAllByCampaignId(campaignId);
+
+        long opened = events.stream().filter(e -> e.getEventType() == TrackingEventType.EMAIL_OPENED).count();
+        long clicked = events.stream().filter(e -> e.getEventType() == TrackingEventType.LINK_CLICKED).count();
+        long submitted = events.stream().filter(e -> e.getEventType() == TrackingEventType.CREDENTIALS_SUBMITTED).count();
+
+        long targetCount = campaign.getTargetCount();
+        
+        double openRate = targetCount > 0 ? (double) opened / targetCount * 100 : 0;
+        double clickRate = targetCount > 0 ? (double) clicked / targetCount * 100 : 0;
+        double submitRate = targetCount > 0 ? (double) submitted / targetCount * 100 : 0;
+
+        return CampaignFunnelResponse.builder()
+                .campaignId(campaignId)
+                .targetCount(targetCount)
+                .emailsDelivered(targetCount)
+                .emailsOpened(opened)
+                .linksClicked(clicked)
+                .credentialsSubmitted(submitted)
+                .openRate(openRate)
+                .clickRate(clickRate)
+                .submitRate(submitRate)
+                .build();
+    }
+
+    @Override
+    public List<TrackingEventResponse> getCampaignEvents(UUID companyId, UUID campaignId) {
+        // Validate campaign belongs to company
+        campaignRepository.findById(campaignId)
+                .filter(c -> c.getCompanyId().equals(companyId) && !c.isDeleted())
+                .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
+
+        List<TrackingEvent> events = trackingEventRepository.findAllByCampaignId(campaignId);
+        
+        // Fetch employees to enrich event data
+        Set<UUID> employeeIds = events.stream().map(TrackingEvent::getEmployeeId).collect(Collectors.toSet());
+        Map<UUID, Employee> employeeMap = employeeRepository.findAllById(employeeIds).stream()
+                .collect(Collectors.toMap(Employee::getId, e -> e));
+
+        return events.stream()
+                .sorted(Comparator.comparing(TrackingEvent::getOccurredAt).reversed())
+                .map(event -> {
+                    Employee employee = employeeMap.get(event.getEmployeeId());
+                    String name = employee != null ? employee.getFirstName() + " " + employee.getLastName() : "Unknown";
+                    String department = employee != null ? employee.getDepartment() : "Unknown";
+                    
+                    return TrackingEventResponse.builder()
+                            .eventId(event.getId())
+                            .employeeId(event.getEmployeeId())
+                            .employeeName(name)
+                            .employeeDepartment(department)
+                            .eventType(event.getEventType())
+                            .occurredAt(event.getOccurredAt())
+                            .build();
+                })
+                .toList();
     }
 }

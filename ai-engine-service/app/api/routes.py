@@ -45,7 +45,7 @@ async def generate_template(
     except Exception:
         logger.exception(
             "Manual template generation failed for campaign=%s",
-            request_event.campaign_id,
+            request_event.template_id,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -54,7 +54,7 @@ async def generate_template(
 
     return TemplateCreatedResponse(
         templateId=result.template_id,
-        campaignId=request_event.campaign_id,
+        templateId=request_event.template_id,
         status="SUCCESS",
     )
 
@@ -83,7 +83,7 @@ async def clone_template(
 ) -> TemplateCreatedResponse:
     cloned_template_id = await template_store.clone(
         template_id=template_id,
-        campaign_id=payload.campaign_id,
+        template_id=payload.template_id,
         company_id=payload.company_id,
     )
     if cloned_template_id is None:
@@ -91,6 +91,6 @@ async def clone_template(
 
     return TemplateCreatedResponse(
         templateId=cloned_template_id,
-        campaignId=payload.campaign_id,
+        templateId=payload.template_id,
         status="SUCCESS",
     )

@@ -18,7 +18,7 @@ class ModelsAndUtilsTests(unittest.TestCase):
 
     def test_request_event_parses_language_alias(self) -> None:
         event = AiGenerationRequestEvent(
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             language="english",
         )
@@ -28,17 +28,17 @@ class ModelsAndUtilsTests(unittest.TestCase):
 
     def test_request_event_defaults_to_professional_and_tr(self) -> None:
         event = AiGenerationRequestEvent(
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
         )
         self.assertEqual(event.difficulty_level, "PROFESSIONAL")
         self.assertEqual(event.language_code, LanguageCode.TR)
 
     def test_template_to_mongo_serializes_uuid_and_enum_values(self) -> None:
-        campaign_id = uuid4()
+        template_id = uuid4()
         company_id = uuid4()
         template = TemplateDocument(
-            campaignId=campaign_id,
+            templateId=template_id,
             companyId=company_id,
             languageCode=LanguageCode.TR,
             subject="Subject",
@@ -48,7 +48,7 @@ class ModelsAndUtilsTests(unittest.TestCase):
             llmModel="stub-generator-v1",
         )
         payload = template.to_mongo()
-        self.assertEqual(payload["campaignId"], str(campaign_id))
+        self.assertEqual(payload["templateId"], str(template_id))
         self.assertEqual(payload["companyId"], str(company_id))
         self.assertEqual(payload["languageCode"], "TR")
 

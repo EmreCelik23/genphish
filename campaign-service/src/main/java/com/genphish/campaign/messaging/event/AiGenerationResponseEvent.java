@@ -14,7 +14,7 @@ import com.genphish.campaign.entity.enums.AiGenerationStatus;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiGenerationResponseEvent {
-    private UUID campaignId;
+    private UUID templateId;
     private String mongoTemplateId;   // Reference to AI-generated content in MongoDB
     private AiGenerationStatus status;
     private String errorMessage;      // Populated if status is FAILED

@@ -1,7 +1,7 @@
 package com.genphish.campaign.messaging.producer;
 
 import com.genphish.campaign.config.KafkaConfig;
-import com.genphish.campaign.entity.Campaign;
+import com.genphish.campaign.entity.PhishingTemplate;
 import com.genphish.campaign.entity.enums.DifficultyLevel;
 import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.RegenerationScope;
@@ -18,40 +18,38 @@ public class AiGenerationRequestProducer {
 
     private final KafkaTemplate<String, AiGenerationRequestEvent> kafkaTemplate;
 
-    // Sends AI generation request to Python service (Full Generation)
-    public void sendGenerationRequest(Campaign campaign) {
-        sendGenerationRequest(campaign, RegenerationScope.ALL, null);
+    public void sendGenerationRequest(PhishingTemplate template, String provider, String model, boolean allowFallbackTemplate) {
+        sendGenerationRequest(template, provider, model, allowFallbackTemplate, RegenerationScope.ALL, null);
     }
 
-    // Overloaded method to support partial regeneration
-    public void sendGenerationRequest(Campaign campaign, RegenerationScope scope, String existingMongoTemplateId) {
-        String difficultyLevel = campaign.getDifficultyLevel() != null
-                ? campaign.getDifficultyLevel().name()
+    public void sendGenerationRequest(PhishingTemplate template, String provider, String model, boolean allowFallbackTemplate, RegenerationScope scope, String existingMongoTemplateId) {
+        String difficultyLevel = template.getDifficultyLevel() != null
+                ? template.getDifficultyLevel().name()
                 : DifficultyLevel.PROFESSIONAL.name(); // Default to PROFESSIONAL if not set
-        LanguageCode languageCode = campaign.getAiLanguageCode() != null
-                ? campaign.getAiLanguageCode()
+        LanguageCode languageCode = template.getLanguageCode() != null
+                ? template.getLanguageCode()
                 : LanguageCode.TR;
 
         AiGenerationRequestEvent event = AiGenerationRequestEvent.builder()
-                .campaignId(campaign.getId())
-                .companyId(campaign.getCompanyId())
-                .prompt(campaign.getAiPrompt())
-                .targetUrl(campaign.getTargetUrl())
+                .templateId(template.getId())
+                .companyId(template.getCompanyId())
+                .prompt(template.getPrompt())
+                .targetUrl(template.getTargetUrl())
                 .difficultyLevel(difficultyLevel)
                 .languageCode(languageCode)
-                .provider(campaign.getAiProvider())
-                .model(campaign.getAiModel())
-                .allowFallbackTemplate(campaign.isAllowFallbackTemplate())
+                .provider(provider)
+                .model(model)
+                .allowFallbackTemplate(allowFallbackTemplate)
                 .regenerationScope(scope)
                 .existingMongoTemplateId(existingMongoTemplateId)
                 .build();
 
         kafkaTemplate.send(
                 KafkaConfig.TOPIC_AI_GENERATION_REQUESTS,
-                campaign.getId().toString(), // Partition key
+                template.getId().toString(), // Partition key
                 event
         );
 
-        log.info("Sent AI generation request for campaign: {}", campaign.getId());
+        log.info("Sent AI generation request for template: {}", template.getId());
     }
 }

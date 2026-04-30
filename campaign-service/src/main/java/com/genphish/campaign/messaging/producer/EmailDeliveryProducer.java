@@ -1,8 +1,5 @@
 package com.genphish.campaign.messaging.producer;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.genphish.campaign.client.PythonServiceClient;
 import com.genphish.campaign.config.KafkaConfig;
 import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.Employee;
@@ -16,7 +13,6 @@ import com.genphish.campaign.repository.PhishingTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -31,9 +27,6 @@ public class EmailDeliveryProducer {
     private final EmployeeRepository employeeRepository;
     private final CampaignTargetRepository campaignTargetRepository;
     private final PhishingTemplateRepository phishingTemplateRepository;
-    private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
-    private final PythonServiceClient pythonServiceClient;
     private final CampaignRepository campaignRepository;
 
     @Value("${app.tracker.base-url:http://localhost:8081}")
@@ -42,16 +35,7 @@ public class EmailDeliveryProducer {
     @Value("${app.campaign.high-risk-threshold:70.0}")
     private Double highRiskThreshold;
 
-    @Value("${app.redis.template-ttl-days:14}")
-    private long templateTtlDays;
-
     private static final String BODY_CLOSING_TAG = "</body>";
-
-    // Temporary DTO to parse JSON from Redis
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private record AiTemplateData(String subject, String bodyHtml, String landingPageCode) {}
-
-    private record EmailTemplateContent(String subject, String bodyHtml) {}
 
     // Sends individual email delivery requests to Go service (Fat Event Pattern)
     public void sendDeliveryRequest(Campaign campaign) {
@@ -65,20 +49,20 @@ public class EmailDeliveryProducer {
         }
 
         // 2. Fetch Template Content
-        EmailTemplateContent templateContent;
-        try {
-            templateContent = resolveEmailTemplate(campaign);
-        } catch (IllegalStateException e) {
-            log.error("Aborting email delivery and setting campaign {} to FAILED. Reason: {}", campaign.getId(), e.getMessage());
+        PhishingTemplate template = phishingTemplateRepository.findByIdAndIsActive(campaign.getTemplateId(), true)
+                .orElse(null);
+
+        if (template == null || template.getEmailSubject() == null || template.getEmailBody() == null) {
+            log.error("Aborting email delivery and setting campaign {} to FAILED. Reason: Template not found or incomplete.", campaign.getId());
             campaign.setStatus(com.genphish.campaign.entity.enums.CampaignStatus.FAILED);
             campaignRepository.save(campaign);
             return;
         }
 
-        String emailSubject = templateContent.subject();
-        String emailBodyHtml = templateContent.bodyHtml();
-        String languageCode = campaign.getAiLanguageCode() != null
-                ? campaign.getAiLanguageCode().name()
+        String emailSubject = template.getEmailSubject();
+        String emailBodyHtml = template.getEmailBody();
+        String languageCode = template.getLanguageCode() != null
+                ? template.getLanguageCode().name()
                 : LanguageCode.TR.name();
 
         // 3. Assemble Fat Events and Push to Kafka
@@ -124,40 +108,6 @@ public class EmailDeliveryProducer {
         }
         
         log.info("Finished pushing {} email delivery events for campaign: {}", targets.size(), campaign.getId());
-    }
-
-    private EmailTemplateContent resolveEmailTemplate(Campaign campaign) {
-        if (campaign.isAiGenerated()) {
-            String redisKey = "ai_template:" + campaign.getMongoTemplateId();
-            String jsonContent = redisTemplate.opsForValue().get(redisKey);
-
-            if (jsonContent == null || jsonContent.isBlank()) {
-                log.warn("Cache Miss: AI template not found in Redis for campaign {}. Attempting to fetch from Python service...", campaign.getId());
-                jsonContent = pythonServiceClient.getTemplateById(campaign.getMongoTemplateId());
-                
-                if (jsonContent != null && !jsonContent.isBlank()) {
-                    // Repopulate cache
-                    redisTemplate.opsForValue().set(redisKey, jsonContent, templateTtlDays, java.util.concurrent.TimeUnit.DAYS);
-                    log.info("Cache-Aside: Successfully fetched and cached AI template for campaign {}", campaign.getId());
-                } else {
-                    log.error("Cache Miss Fallback FAILED: Template permanently lost for campaign: {}", campaign.getId());
-                    throw new IllegalStateException("AI template permanently lost");
-                }
-            }
-
-            try {
-                AiTemplateData aiData = objectMapper.readValue(jsonContent, AiTemplateData.class);
-                return new EmailTemplateContent(aiData.subject(), aiData.bodyHtml());
-            } catch (Exception e) {
-                log.error("Failed to parse AI template for campaign: {}", campaign.getId(), e);
-                throw new IllegalStateException("AI template parsing failed", e);
-            }
-        } else {
-            // Static template fallback
-            PhishingTemplate template = phishingTemplateRepository.findByIdAndIsActive(campaign.getStaticTemplateId(), true)
-                    .orElseThrow(() -> new IllegalStateException("Static template not found or inactive for campaign: " + campaign.getId()));
-            return new EmailTemplateContent(template.getEmailSubject(), template.getEmailBody());
-        }
     }
 
     private List<Employee> fetchTargetEmployees(Campaign campaign) {

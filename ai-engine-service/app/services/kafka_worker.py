@@ -127,16 +127,16 @@ class KafkaWorker:
             fallback_used = result.fallback_used
             generation_succeeded = True
             response = AiGenerationResponseEvent(
-                campaignId=request.campaign_id,
+                templateId=request.template_id,
                 mongoTemplateId=template_id,
                 status=AiGenerationStatus.SUCCESS,
                 errorMessage=None,
                 fallbackUsed=fallback_used,
             )
         except Exception as exc:
-            self._logger.exception("AI generation failed for campaign=%s", request.campaign_id)
+            self._logger.exception("AI generation failed for campaign=%s", request.template_id)
             response = AiGenerationResponseEvent(
-                campaignId=request.campaign_id,
+                templateId=request.template_id,
                 mongoTemplateId=None,
                 status=AiGenerationStatus.FAILED,
                 errorMessage=str(exc),
@@ -148,14 +148,14 @@ class KafkaWorker:
         except Exception:
             self._logger.exception(
                 "Failed to publish AI generation response for campaign=%s",
-                request.campaign_id,
+                request.template_id,
             )
             return
 
         if generation_succeeded and template_id is not None:
             self._logger.info(
                 "AI generation success for campaign=%s template_id=%s",
-                request.campaign_id,
+                request.template_id,
                 template_id,
             )
 
@@ -164,6 +164,6 @@ class KafkaWorker:
 
         await self._producer.send_and_wait(
             topic=self._settings.topic_ai_generation_responses,
-            key=str(response.campaign_id),
+            key=str(response.template_id),
             value=response.model_dump(by_alias=True, mode="json"),
         )

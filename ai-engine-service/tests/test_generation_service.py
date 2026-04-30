@@ -147,7 +147,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         generator = FakeGenerator()
         service = GenerationService(generator=generator, template_store=store)
         request = AiGenerationRequestEvent(
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             prompt="IT sifre yenileme",
             targetUrl="https://example.com",
@@ -169,7 +169,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         existing_id = "507f1f77bcf86cd799439011"
         existing = StoredTemplateView(
             id=existing_id,
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             subject="existing-subject",
             bodyHtml="<p>existing-body</p>",
@@ -181,7 +181,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         generator = FakeGenerator()
         service = GenerationService(generator=generator, template_store=store)
         request = AiGenerationRequestEvent(
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             prompt="Finans odakli senaryo",
             difficultyLevel="PROFESSIONAL",
@@ -209,7 +209,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         existing_id = "507f1f77bcf86cd799439012"
         existing = StoredTemplateView(
             id=existing_id,
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             subject="existing-subject",
             bodyHtml="<p>existing-body</p>",
@@ -221,7 +221,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         generator = FakeGenerator()
         service = GenerationService(generator=generator, template_store=store)
         request = AiGenerationRequestEvent(
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             prompt="IK odakli senaryo",
             difficultyLevel="AMATEUR",
@@ -255,7 +255,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         store = FakeTemplateStore(existing=None, fallback_parts=fallback)
         service = GenerationService(generator=FailingGenerator(), template_store=store)
         request = AiGenerationRequestEvent(
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             prompt="IT reset senaryosu",
             difficultyLevel="AMATEUR",
@@ -279,7 +279,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         store = FakeTemplateStore(existing=None, fallback_parts=None)
         service = GenerationService(generator=FailingGenerator(), template_store=store)
         request = AiGenerationRequestEvent(
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             prompt="IT reset senaryosu",
             difficultyLevel="AMATEUR",
@@ -300,7 +300,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         store = FakeTemplateStore(existing=None, fallback_parts=None)
         service = GenerationService(generator=NonCompliantGenerator(), template_store=store)
         request = AiGenerationRequestEvent(
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             prompt="Basit senaryo",
             difficultyLevel="AMATEUR",
@@ -323,7 +323,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         store = FakeTemplateStore(existing=None, fallback_parts=None)
         service = GenerationService(generator=FailingGenerator(), template_store=store)
         request = AiGenerationRequestEvent(
-            campaignId=uuid4(),
+            templateId=uuid4(),
             companyId=uuid4(),
             prompt="IT reset senaryosu",
             difficultyLevel="AMATEUR",

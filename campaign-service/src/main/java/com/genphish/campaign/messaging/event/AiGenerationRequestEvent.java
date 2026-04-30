@@ -15,7 +15,7 @@ import com.genphish.campaign.entity.enums.RegenerationScope;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiGenerationRequestEvent {
-    private UUID campaignId;
+    private UUID templateId;
     private UUID companyId;
     private String prompt;            // Scenario description
     private String targetUrl;         // URL to clone for landing page
