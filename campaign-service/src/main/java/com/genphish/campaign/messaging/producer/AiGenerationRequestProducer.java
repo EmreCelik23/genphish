@@ -41,6 +41,7 @@ public class AiGenerationRequestProducer {
                 .languageCode(languageCode)
                 .provider(campaign.getAiProvider())
                 .model(campaign.getAiModel())
+                .allowFallbackTemplate(campaign.isAllowFallbackTemplate())
                 .regenerationScope(scope)
                 .existingMongoTemplateId(existingMongoTemplateId)
                 .build();

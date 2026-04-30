@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.models.events import (
     AiGenerationRequestEvent,
+    CloneTemplateRequest,
     ErrorResponse,
     ManualGenerateRequest,
     TemplateCreatedResponse,
@@ -40,7 +41,7 @@ async def generate_template(
 ) -> TemplateCreatedResponse:
     request_event = AiGenerationRequestEvent.model_validate(payload.model_dump(by_alias=True))
     try:
-        template_id = await generation_service.generate_and_store(request_event)
+        result = await generation_service.generate_and_store(request_event)
     except Exception:
         logger.exception(
             "Manual template generation failed for campaign=%s",
@@ -52,7 +53,7 @@ async def generate_template(
         )
 
     return TemplateCreatedResponse(
-        templateId=template_id,
+        templateId=result.template_id,
         campaignId=request_event.campaign_id,
         status="SUCCESS",
     )
@@ -68,3 +69,28 @@ async def get_template(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
     return Response(content=payload, media_type="application/json")
+
+
+@router.post(
+    "/api/templates/{template_id}/clone",
+    response_model=TemplateCreatedResponse,
+    responses={404: {"model": ErrorResponse}},
+)
+async def clone_template(
+    template_id: str,
+    payload: CloneTemplateRequest,
+    template_store: TemplateStore = Depends(get_template_store),
+) -> TemplateCreatedResponse:
+    cloned_template_id = await template_store.clone(
+        template_id=template_id,
+        campaign_id=payload.campaign_id,
+        company_id=payload.company_id,
+    )
+    if cloned_template_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+
+    return TemplateCreatedResponse(
+        templateId=cloned_template_id,
+        campaignId=payload.campaign_id,
+        status="SUCCESS",
+    )

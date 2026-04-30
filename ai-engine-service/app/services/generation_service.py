@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 
@@ -6,6 +7,12 @@ from app.models.events import AiGenerationRequestEvent, LanguageCode, Regenerati
 from app.models.template import TemplateDocument
 from app.services.generator import ContentGenerator, GeneratedTemplateParts
 from app.services.template_store import TemplateStore
+
+
+@dataclass(frozen=True)
+class GenerationResult:
+    template_id: str
+    fallback_used: bool
 
 
 class GenerationService:
@@ -20,12 +27,12 @@ class GenerationService:
         self._generation_timeout_seconds = generation_timeout_seconds
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def generate_and_store(self, request: AiGenerationRequestEvent) -> str:
+    async def generate_and_store(self, request: AiGenerationRequestEvent) -> GenerationResult:
         existing = None
         if request.existing_mongo_template_id:
             existing = await self._template_store.get(request.existing_mongo_template_id)
 
-        parts = await self._resolve_generation_with_circuit_breaker(request, existing)
+        parts, fallback_used = await self._resolve_generation_with_circuit_breaker(request, existing)
         parts = self._enforce_template_contract(request, existing, parts)
 
         template = TemplateDocument(
@@ -44,32 +51,41 @@ class GenerationService:
         )
 
         if existing and request.existing_mongo_template_id:
-            return await self._template_store.update(request.existing_mongo_template_id, template)
-        return await self._template_store.create(template)
+            template_id = await self._template_store.update(request.existing_mongo_template_id, template)
+            return GenerationResult(template_id=template_id, fallback_used=fallback_used)
+        template_id = await self._template_store.create(template)
+        return GenerationResult(template_id=template_id, fallback_used=fallback_used)
 
     async def _resolve_generation_with_circuit_breaker(
         self,
         request: AiGenerationRequestEvent,
         existing,
-    ) -> GeneratedTemplateParts:
+    ) -> tuple[GeneratedTemplateParts, bool]:
+        should_allow_fallback = request.allow_fallback_template
         try:
-            return await asyncio.wait_for(
+            parts = await asyncio.wait_for(
                 self._resolve_generation_parts(request, existing),
                 timeout=self._generation_timeout_seconds,
             )
-        except asyncio.TimeoutError:
+            return parts, False
+        except asyncio.TimeoutError as exc:
             self._logger.warning(
-                "AI generation timeout after %.1fs for campaign=%s. Using fallback template.",
+                "AI generation timeout after %.1fs for campaign=%s.",
                 self._generation_timeout_seconds,
                 request.campaign_id,
             )
-        except Exception:
+            if not should_allow_fallback:
+                raise RuntimeError("AI generation timed out and fallback template is disabled.") from exc
+        except Exception as exc:
             self._logger.exception(
-                "AI generation error for campaign=%s. Using fallback template.",
+                "AI generation error for campaign=%s.",
                 request.campaign_id,
             )
+            if not should_allow_fallback:
+                raise RuntimeError("AI generation failed and fallback template is disabled.") from exc
 
-        return await self._resolve_fallback_parts(request, existing)
+        fallback_parts = await self._resolve_fallback_parts(request, existing)
+        return fallback_parts, True
 
     async def _resolve_generation_parts(
         self,

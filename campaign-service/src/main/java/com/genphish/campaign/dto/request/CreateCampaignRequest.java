@@ -38,6 +38,7 @@ public class CreateCampaignRequest {
     private String languageCode = LanguageCode.TR.name(); // Optional: TR or EN (default TR)
     private String aiProvider; // Optional: openai, anthropic, gemini, stub
     private String aiModel; // Optional: provider-specific model override
+    private boolean allowFallbackTemplate = false; // Optional: AI fail olursa fallback template kullan
 
     @NotNull(message = "Difficulty level must be specified")
     private DifficultyLevel difficultyLevel = DifficultyLevel.PROFESSIONAL; // AMATEUR or PROFESSIONAL (default PROFESSIONAL)

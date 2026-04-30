@@ -1,14 +1,17 @@
 package com.genphish.campaign.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.genphish.campaign.dto.request.CloneCampaignRequest;
 import com.genphish.campaign.dto.request.CreateCampaignRequest;
 import com.genphish.campaign.dto.request.RegenerateAiCampaignRequest;
+import com.genphish.campaign.dto.response.AiCampaignLibraryItemResponse;
 import com.genphish.campaign.dto.response.CampaignResponse;
 import com.genphish.campaign.entity.enums.CampaignStatus;
 import com.genphish.campaign.entity.enums.DifficultyLevel;
 import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.RegenerationScope;
 import com.genphish.campaign.entity.enums.TargetingType;
+import com.genphish.campaign.service.AiCampaignLibraryService;
 import com.genphish.campaign.service.CampaignService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,13 +40,15 @@ class CampaignControllerTest {
 
     @Mock
     private CampaignService campaignService;
+    @Mock
+    private AiCampaignLibraryService aiCampaignLibraryService;
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        CampaignController controller = new CampaignController(campaignService);
+        CampaignController controller = new CampaignController(campaignService, aiCampaignLibraryService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
         objectMapper = new ObjectMapper();
     }
@@ -109,6 +114,25 @@ class CampaignControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(campaignId.toString()))
                 .andExpect(jsonPath("$[0].name").value("Campaign 1"));
+    }
+
+    @Test
+    void getAiCampaignLibrary_ShouldReturnList() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        UUID campaignId = UUID.randomUUID();
+
+        AiCampaignLibraryItemResponse response = AiCampaignLibraryItemResponse.builder()
+                .campaignId(campaignId)
+                .name("Reusable AI")
+                .status(CampaignStatus.DRAFT)
+                .build();
+
+        when(aiCampaignLibraryService.getAiCampaignLibrary(companyId)).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/v1/companies/{companyId}/campaigns/ai-library", companyId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].campaignId").value(campaignId.toString()))
+                .andExpect(jsonPath("$[0].name").value("Reusable AI"));
     }
 
     @Test
@@ -181,6 +205,33 @@ class CampaignControllerTest {
         mockMvc.perform(post("/api/v1/companies/{companyId}/campaigns/{campaignId}/start", companyId, campaignId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+    }
+
+    @Test
+    void cloneCampaign_ShouldReturnCreated() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        UUID sourceCampaignId = UUID.randomUUID();
+        UUID cloneCampaignId = UUID.randomUUID();
+
+        CloneCampaignRequest request = new CloneCampaignRequest();
+        request.setName("Cloned Campaign");
+
+        CampaignResponse response = CampaignResponse.builder()
+                .id(cloneCampaignId)
+                .companyId(companyId)
+                .name("Cloned Campaign")
+                .status(CampaignStatus.DRAFT)
+                .build();
+
+        when(aiCampaignLibraryService.cloneCampaign(eq(companyId), eq(sourceCampaignId), any(CloneCampaignRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/companies/{companyId}/campaigns/{campaignId}/clone", companyId, sourceCampaignId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(cloneCampaignId.toString()))
+                .andExpect(jsonPath("$.name").value("Cloned Campaign"));
     }
 
     @Test

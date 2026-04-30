@@ -89,6 +89,9 @@ public class CampaignServiceImpl implements CampaignService {
         if (request.getAiModel() != null && !request.getAiModel().isBlank()) {
             campaign.setAiModel(request.getAiModel().trim());
         }
+        if (request.getAllowFallbackTemplate() != null) {
+            campaign.setAllowFallbackTemplate(request.getAllowFallbackTemplate());
+        }
 
         // Set status to generating
         campaign.setStatus(CampaignStatus.GENERATING);
@@ -173,6 +176,9 @@ public class CampaignServiceImpl implements CampaignService {
 
     private void validateStaticTemplateIfRequired(CreateCampaignRequest request) {
         if (Boolean.FALSE.equals(request.getIsAiGenerated())) {
+            if (request.isAllowFallbackTemplate()) {
+                throw new InvalidOperationException("allowFallbackTemplate can only be used for AI campaigns.");
+            }
             if (request.getStaticTemplateId() == null) {
                 throw new InvalidOperationException("Static template ID is required for non-AI campaigns.");
             }
@@ -214,21 +220,23 @@ public class CampaignServiceImpl implements CampaignService {
         DifficultyLevel difficultyLevel = request.getDifficultyLevel() != null
                 ? request.getDifficultyLevel()
                 : DifficultyLevel.PROFESSIONAL;
+        boolean aiCampaign = Boolean.TRUE.equals(request.getIsAiGenerated());
         return Campaign.builder()
                 .companyId(companyId)
                 .name(request.getName())
                 .targetingType(request.getTargetingType())
                 .targetDepartment(request.getTargetDepartment())
-                .isAiGenerated(request.getIsAiGenerated())
+                .isAiGenerated(aiCampaign)
                 .aiPrompt(request.getAiPrompt())
                 .targetUrl(request.getTargetUrl())
                 .difficultyLevel(difficultyLevel)
                 .aiLanguageCode(normalizeLanguageCode(request.getLanguageCode()))
                 .aiProvider(normalizeProvider(request.getAiProvider()))
                 .aiModel(normalizeOptional(request.getAiModel()))
+                .allowFallbackTemplate(aiCampaign && request.isAllowFallbackTemplate())
                 .staticTemplateId(request.getStaticTemplateId())
                 .qrCodeEnabled(request.isQrCodeEnabled())
-                .status(CampaignStatus.DRAFT)
+                .status(resolveInitialStatus(request))
                 .scheduledFor(request.getScheduledFor())
                 .build();
     }
@@ -249,8 +257,6 @@ public class CampaignServiceImpl implements CampaignService {
 
     private void triggerAiGenerationIfNeeded(Campaign campaign, UUID companyId, Boolean isAiGenerated) {
         if (Boolean.TRUE.equals(isAiGenerated)) {
-            campaign.setStatus(CampaignStatus.GENERATING);
-            campaignRepository.save(campaign);
             aiGenerationRequestProducer.sendGenerationRequest(campaign);
             log.info("AI generation request sent for campaign: {}", campaign.getId());
             return;
@@ -272,12 +278,21 @@ public class CampaignServiceImpl implements CampaignService {
                 .languageCode(campaign.getAiLanguageCode())
                 .aiProvider(campaign.getAiProvider())
                 .aiModel(campaign.getAiModel())
+                .allowFallbackTemplate(campaign.isAllowFallbackTemplate())
+                .fallbackContentUsed(campaign.isFallbackContentUsed())
                 .staticTemplateId(campaign.getStaticTemplateId())
                 .qrCodeEnabled(campaign.isQrCodeEnabled())
                 .status(campaign.getStatus())
                 .scheduledFor(campaign.getScheduledFor())
                 .createdAt(campaign.getCreatedAt())
                 .build();
+    }
+
+    private CampaignStatus resolveInitialStatus(CreateCampaignRequest request) {
+        if (Boolean.TRUE.equals(request.getIsAiGenerated())) {
+            return CampaignStatus.GENERATING;
+        }
+        return request.getScheduledFor() != null ? CampaignStatus.SCHEDULED : CampaignStatus.DRAFT;
     }
 
     private LanguageCode normalizeLanguageCode(String value) {

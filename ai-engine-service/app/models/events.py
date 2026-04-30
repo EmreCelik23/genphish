@@ -81,6 +81,7 @@ class AiGenerationRequestEvent(BaseModel):
         alias="model",
         validation_alias=AliasChoices("model", "modelName", "llmModel"),
     )
+    allow_fallback_template: bool = Field(default=False, alias="allowFallbackTemplate")
 
     @field_validator("difficulty_level", mode="before")
     @classmethod
@@ -110,6 +111,7 @@ class AiGenerationResponseEvent(BaseModel):
     mongo_template_id: str | None = Field(default=None, alias="mongoTemplateId")
     status: AiGenerationStatus
     error_message: str | None = Field(default=None, alias="errorMessage")
+    fallback_used: bool = Field(default=False, alias="fallbackUsed")
 
 
 class ManualGenerateRequest(BaseModel):
@@ -137,6 +139,7 @@ class ManualGenerateRequest(BaseModel):
         alias="model",
         validation_alias=AliasChoices("model", "modelName", "llmModel"),
     )
+    allow_fallback_template: bool = Field(default=False, alias="allowFallbackTemplate")
 
     @field_validator("difficulty_level", mode="before")
     @classmethod
@@ -157,6 +160,13 @@ class ManualGenerateRequest(BaseModel):
     @classmethod
     def normalize_manual_optional_text(cls, value: str | None) -> str | None:
         return normalize_optional_text(value)
+
+
+class CloneTemplateRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    campaign_id: UUID = Field(alias="campaignId")
+    company_id: UUID = Field(alias="companyId")
 
 
 class TemplateCreatedResponse(BaseModel):

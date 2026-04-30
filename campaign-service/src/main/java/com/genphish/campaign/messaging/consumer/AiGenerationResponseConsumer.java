@@ -28,11 +28,15 @@ public class AiGenerationResponseConsumer {
 
         campaignRepository.findById(event.getCampaignId()).ifPresent(campaign -> {
             if (event.getStatus() == AiGenerationStatus.SUCCESS) {
+                boolean fallbackUsed = Boolean.TRUE.equals(event.getFallbackUsed());
                 // Store MongoDB reference and update status
                 campaign.setMongoTemplateId(event.getMongoTemplateId());
+                campaign.setFallbackContentUsed(fallbackUsed);
 
-                // If scheduled for later, set to SCHEDULED; otherwise set to DRAFT (awaiting manual start)
-                if (campaign.getScheduledFor() != null) {
+                // Fallback içerik için otomatik schedule güvenlik riski yaratabilir; her zaman DRAFT bırak.
+                if (fallbackUsed) {
+                    campaign.setStatus(CampaignStatus.DRAFT);
+                } else if (campaign.getScheduledFor() != null) {
                     campaign.setStatus(CampaignStatus.SCHEDULED);
                 } else {
                     campaign.setStatus(CampaignStatus.DRAFT);

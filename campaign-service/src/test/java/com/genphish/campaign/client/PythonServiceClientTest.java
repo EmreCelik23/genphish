@@ -10,7 +10,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,5 +55,45 @@ class PythonServiceClientTest {
         String actual = pythonServiceClient.getTemplateById(templateId);
 
         assertThat(actual).isNull();
+    }
+
+    @Test
+    void cloneTemplateForCampaign_WhenRequestSucceeds_ShouldReturnTemplateId() {
+        String sourceTemplateId = "mongo-source-1";
+        UUID campaignId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+
+        // Use real deserialization path via RestTemplate typed response.
+        when(restTemplate.postForObject(
+                eq("http://python-service/api/templates/mongo-source-1/clone"),
+                org.mockito.ArgumentMatchers.any(),
+                eq(com.genphish.campaign.client.PythonServiceClient.TemplateCloneResponse.class)
+        )).thenReturn(new com.genphish.campaign.client.PythonServiceClient.TemplateCloneResponse("mongo-clone-1"));
+
+        String cloned = pythonServiceClient.cloneTemplateForCampaign(sourceTemplateId, campaignId, companyId);
+
+        assertThat(cloned).isEqualTo("mongo-clone-1");
+        verify(restTemplate).postForObject(
+                eq("http://python-service/api/templates/mongo-source-1/clone"),
+                org.mockito.ArgumentMatchers.any(),
+                eq(com.genphish.campaign.client.PythonServiceClient.TemplateCloneResponse.class)
+        );
+    }
+
+    @Test
+    void cloneTemplateForCampaign_WhenRequestFails_ShouldReturnNull() {
+        String sourceTemplateId = "mongo-source-1";
+        UUID campaignId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+
+        when(restTemplate.postForObject(
+                eq("http://python-service/api/templates/mongo-source-1/clone"),
+                org.mockito.ArgumentMatchers.any(),
+                eq(com.genphish.campaign.client.PythonServiceClient.TemplateCloneResponse.class)
+        )).thenThrow(new RestClientException("Connection failed"));
+
+        String cloned = pythonServiceClient.cloneTemplateForCampaign(sourceTemplateId, campaignId, companyId);
+
+        assertThat(cloned).isNull();
     }
 }

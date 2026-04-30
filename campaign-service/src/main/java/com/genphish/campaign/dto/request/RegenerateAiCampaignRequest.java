@@ -23,4 +23,5 @@ public class RegenerateAiCampaignRequest {
     private String languageCode; // TR or EN
     private String aiProvider;   // openai, anthropic, gemini, stub
     private String aiModel;      // provider-specific model name
+    private Boolean allowFallbackTemplate; // Optional: true ise AI fail durumunda fallback template kullan
 }

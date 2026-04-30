@@ -64,11 +64,19 @@ public class Campaign {
     @Column(name = "ai_model")
     private String aiModel; // provider-specific model override
 
+    @Column(name = "allow_fallback_template", nullable = false)
+    @Builder.Default
+    private boolean allowFallbackTemplate = false; // AI fail durumunda fallback template kullanım izni
+
     @Column(name = "static_template_id")
     private UUID staticTemplateId; // Static mode: reference to phishing_templates table
 
     @Column(name = "mongo_template_id")
     private String mongoTemplateId; // App-level join for AI-generated content in MongoDB
+
+    @Column(name = "fallback_content_used", nullable = false)
+    @Builder.Default
+    private boolean fallbackContentUsed = false; // AI çıktısı fallback üzerinden üretildiyse true
 
     @Column(name = "target_count")
     @Builder.Default

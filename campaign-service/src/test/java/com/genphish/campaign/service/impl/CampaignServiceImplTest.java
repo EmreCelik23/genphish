@@ -3,6 +3,7 @@ package com.genphish.campaign.service.impl;
 import com.genphish.campaign.dto.request.CreateCampaignRequest;
 import com.genphish.campaign.dto.response.CampaignResponse;
 import com.genphish.campaign.entity.Campaign;
+import com.genphish.campaign.entity.PhishingTemplate;
 import com.genphish.campaign.entity.enums.CampaignStatus;
 import com.genphish.campaign.entity.enums.DifficultyLevel;
 import com.genphish.campaign.entity.enums.TargetingType;
@@ -21,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -87,6 +89,43 @@ class CampaignServiceImplTest {
         // Then
         assertThat(response).isNotNull();
         verify(aiGenerationRequestProducer, times(1)).sendGenerationRequest(savedCampaign);
+    }
+
+    @Test
+    void createCampaign_WhenStaticScheduled_ShouldRemainScheduled() {
+        CreateCampaignRequest request = new CreateCampaignRequest();
+        request.setName("Static Scheduled");
+        request.setIsAiGenerated(false);
+        request.setTargetingType(TargetingType.ALL_COMPANY);
+        request.setStaticTemplateId(UUID.randomUUID());
+        request.setScheduledFor(LocalDateTime.now().plusDays(1));
+
+        PhishingTemplate template = PhishingTemplate.builder()
+                .id(request.getStaticTemplateId())
+                .isActive(true)
+                .build();
+        when(phishingTemplateRepository.findByIdAndIsActive(request.getStaticTemplateId(), true))
+                .thenReturn(java.util.Optional.of(template));
+        when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CampaignResponse response = campaignService.createCampaign(companyId, request);
+
+        assertThat(response.getStatus()).isEqualTo(CampaignStatus.SCHEDULED);
+        verify(aiGenerationRequestProducer, never()).sendGenerationRequest(any(Campaign.class));
+    }
+
+    @Test
+    void createCampaign_WhenStaticAndAllowFallbackTrue_ShouldThrowException() {
+        CreateCampaignRequest request = new CreateCampaignRequest();
+        request.setName("Static");
+        request.setIsAiGenerated(false);
+        request.setTargetingType(TargetingType.ALL_COMPANY);
+        request.setStaticTemplateId(UUID.randomUUID());
+        request.setAllowFallbackTemplate(true);
+
+        assertThatThrownBy(() -> campaignService.createCampaign(companyId, request))
+                .isInstanceOf(InvalidOperationException.class)
+                .hasMessageContaining("allowFallbackTemplate can only be used for AI campaigns");
     }
 
     @Test

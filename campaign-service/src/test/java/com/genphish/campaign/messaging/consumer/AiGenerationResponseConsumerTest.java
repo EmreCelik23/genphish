@@ -77,6 +77,31 @@ class AiGenerationResponseConsumerTest {
     }
 
     @Test
+    void consume_WhenSuccessWithFallbackAndScheduledForExists_ShouldSetDraft() {
+        UUID campaignId = UUID.randomUUID();
+        Campaign campaign = Campaign.builder()
+                .id(campaignId)
+                .status(CampaignStatus.GENERATING)
+                .scheduledFor(LocalDateTime.now().plusHours(2))
+                .build();
+
+        AiGenerationResponseEvent event = AiGenerationResponseEvent.builder()
+                .campaignId(campaignId)
+                .status(AiGenerationStatus.SUCCESS)
+                .mongoTemplateId("mongo-fallback")
+                .fallbackUsed(true)
+                .build();
+
+        when(campaignRepository.findById(campaignId)).thenReturn(Optional.of(campaign));
+
+        consumer.consume(event);
+
+        assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.DRAFT);
+        assertThat(campaign.isFallbackContentUsed()).isTrue();
+        verify(campaignRepository).save(campaign);
+    }
+
+    @Test
     void consume_WhenFailed_ShouldSetFailedStatus() {
         UUID campaignId = UUID.randomUUID();
         Campaign campaign = Campaign.builder()

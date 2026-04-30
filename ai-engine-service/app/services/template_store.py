@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import json
+from uuid import UUID
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorCollection
@@ -36,6 +37,24 @@ class TemplateStore:
 
         await self._collection.update_one({"_id": object_id}, {"$set": payload}, upsert=False)
         return template_id
+
+    async def clone(self, template_id: str, campaign_id: UUID, company_id: UUID) -> str | None:
+        if not ObjectId.is_valid(template_id):
+            return None
+
+        raw = await self._collection.find_one({"_id": ObjectId(template_id)})
+        if not raw:
+            return None
+
+        raw.pop("_id", None)
+        now = datetime.now(timezone.utc)
+        raw["campaignId"] = str(campaign_id)
+        raw["companyId"] = str(company_id)
+        raw["createdAt"] = now
+        raw["updatedAt"] = now
+
+        result = await self._collection.insert_one(raw)
+        return str(result.inserted_id)
 
     async def get(self, template_id: str) -> StoredTemplateView | None:
         if not ObjectId.is_valid(template_id):

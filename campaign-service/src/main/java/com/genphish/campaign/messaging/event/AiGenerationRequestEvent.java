@@ -23,6 +23,7 @@ public class AiGenerationRequestEvent {
     private LanguageCode languageCode;
     private String provider;          // openai, anthropic, gemini, stub
     private String model;             // Optional provider-specific model name
+    private Boolean allowFallbackTemplate; // true ise AI fail durumunda fallback template ile devam et
     
     // Support for partial regeneration
     private RegenerationScope regenerationScope;

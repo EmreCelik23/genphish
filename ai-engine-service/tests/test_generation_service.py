@@ -155,9 +155,10 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
             regenerationScope=RegenerationScope.ALL,
         )
 
-        template_id = await service.generate_and_store(request)
+        result = await service.generate_and_store(request)
 
-        self.assertEqual(template_id, "new-template-id")
+        self.assertEqual(result.template_id, "new-template-id")
+        self.assertFalse(result.fallback_used)
         self.assertIsNotNone(store.created_payload)
         self.assertIsNone(store.updated_payload)
         self.assertEqual(generator.full_calls, 1)
@@ -188,9 +189,10 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
             existingMongoTemplateId=existing_id,
         )
 
-        template_id = await service.generate_and_store(request)
+        result = await service.generate_and_store(request)
 
-        self.assertEqual(template_id, existing_id)
+        self.assertEqual(result.template_id, existing_id)
+        self.assertFalse(result.fallback_used)
         self.assertIsNone(store.created_payload)
         self.assertIsNotNone(store.updated_payload)
         _, updated_template = store.updated_payload
@@ -227,9 +229,10 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
             existingMongoTemplateId=existing_id,
         )
 
-        template_id = await service.generate_and_store(request)
+        result = await service.generate_and_store(request)
 
-        self.assertEqual(template_id, existing_id)
+        self.assertEqual(result.template_id, existing_id)
+        self.assertFalse(result.fallback_used)
         self.assertIsNone(store.created_payload)
         self.assertIsNotNone(store.updated_payload)
         _, updated_template = store.updated_payload
@@ -257,11 +260,13 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
             prompt="IT reset senaryosu",
             difficultyLevel="AMATEUR",
             regenerationScope=RegenerationScope.ALL,
+            allowFallbackTemplate=True,
         )
 
-        template_id = await service.generate_and_store(request)
+        result = await service.generate_and_store(request)
 
-        self.assertEqual(template_id, "new-template-id")
+        self.assertEqual(result.template_id, "new-template-id")
+        self.assertTrue(result.fallback_used)
         self.assertIsNotNone(store.created_payload)
         self.assertEqual(store.created_payload.subject, "fallback-subject")
         self.assertIn("fallback-body", store.created_payload.body_html)
@@ -280,11 +285,13 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
             difficultyLevel="AMATEUR",
             regenerationScope=RegenerationScope.ALL,
             languageCode="EN",
+            allowFallbackTemplate=True,
         )
 
-        template_id = await service.generate_and_store(request)
+        result = await service.generate_and_store(request)
 
-        self.assertEqual(template_id, "new-template-id")
+        self.assertEqual(result.template_id, "new-template-id")
+        self.assertTrue(result.fallback_used)
         self.assertIsNotNone(store.created_payload)
         self.assertIn("usePathname", store.created_payload.landing_page_code)
         self.assertIn("lang ? `&lang=${lang}` : ''", store.created_payload.landing_page_code)
@@ -301,15 +308,31 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
             languageCode="EN",
         )
 
-        template_id = await service.generate_and_store(request)
+        result = await service.generate_and_store(request)
 
-        self.assertEqual(template_id, "new-template-id")
+        self.assertEqual(result.template_id, "new-template-id")
+        self.assertFalse(result.fallback_used)
         self.assertIsNotNone(store.created_payload)
         self.assertEqual(store.created_payload.subject, "Amateur Security Verification")
         self.assertIn("{{name}}", store.created_payload.body_html)
         self.assertIn("{{department}}", store.created_payload.body_html)
         self.assertIn("{{phishing_link}}", store.created_payload.body_html)
         self.assertIn("/track/submit", store.created_payload.landing_page_code)
+
+    async def test_generation_raises_when_fallback_disabled(self) -> None:
+        store = FakeTemplateStore(existing=None, fallback_parts=None)
+        service = GenerationService(generator=FailingGenerator(), template_store=store)
+        request = AiGenerationRequestEvent(
+            campaignId=uuid4(),
+            companyId=uuid4(),
+            prompt="IT reset senaryosu",
+            difficultyLevel="AMATEUR",
+            regenerationScope=RegenerationScope.ALL,
+            allowFallbackTemplate=False,
+        )
+
+        with self.assertRaises(RuntimeError):
+            await service.generate_and_store(request)
 
 
 if __name__ == "__main__":

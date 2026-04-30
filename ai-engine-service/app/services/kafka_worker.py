@@ -120,14 +120,18 @@ class KafkaWorker:
 
         generation_succeeded = False
         template_id: str | None = None
+        fallback_used = False
         try:
-            template_id = await self._generation_service.generate_and_store(request)
+            result = await self._generation_service.generate_and_store(request)
+            template_id = result.template_id
+            fallback_used = result.fallback_used
             generation_succeeded = True
             response = AiGenerationResponseEvent(
                 campaignId=request.campaign_id,
                 mongoTemplateId=template_id,
                 status=AiGenerationStatus.SUCCESS,
                 errorMessage=None,
+                fallbackUsed=fallback_used,
             )
         except Exception as exc:
             self._logger.exception("AI generation failed for campaign=%s", request.campaign_id)
@@ -136,6 +140,7 @@ class KafkaWorker:
                 mongoTemplateId=None,
                 status=AiGenerationStatus.FAILED,
                 errorMessage=str(exc),
+                fallbackUsed=False,
             )
 
         try:

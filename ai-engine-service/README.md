@@ -13,8 +13,10 @@ It consumes campaign generation jobs from Kafka, produces phishing simulation as
 - Publishes `ai_generation_responses` events with `mongoTemplateId`
 - Exposes API fallback for campaign service cache misses:
   - `GET /api/templates/{template_id}`
+  - `POST /api/templates/{template_id}/clone` (creates independent copy for campaign cloning)
 - Uses circuit-breaker fallback:
-  - on LLM timeout/error, loads static fallback template from MongoDB `fallback_templates`
+  - strict mode is default: on LLM timeout/error, generation fails (`FAILED`)
+  - if request explicitly sets `allowFallbackTemplate=true`, service loads static fallback template from MongoDB `fallback_templates`
   - if DB fallback is missing, uses built-in safe fallback template
 - Landing code compatibility:
   - supports both query-style ids (`?c=...`) and dynamic path ids (`/phishing/{campaignId}`)
@@ -39,7 +41,8 @@ Expected payload (camelCase):
   "existingMongoTemplateId": "optional-string",
   "languageCode": "TR|EN (optional, default TR)",
   "provider": "openai|anthropic|gemini|stub (optional)",
-  "model": "optional model override"
+  "model": "optional model override",
+  "allowFallbackTemplate": "boolean (optional, default false)"
 }
 ```
 
@@ -54,7 +57,8 @@ Produced payload (camelCase):
   "campaignId": "uuid",
   "mongoTemplateId": "string-or-null",
   "status": "SUCCESS|FAILED",
-  "errorMessage": "string-or-null"
+  "errorMessage": "string-or-null",
+  "fallbackUsed": "boolean"
 }
 ```
 
@@ -71,6 +75,15 @@ Produced payload (camelCase):
 ```
 
 This is intentionally aligned with `campaign-service` `EmailDeliveryProducer` parser expectations.
+
+`POST /api/templates/{id}/clone` request body:
+
+```json
+{
+  "campaignId": "uuid",
+  "companyId": "uuid"
+}
+```
 
 ## Tech stack
 
@@ -136,6 +149,7 @@ docker run --rm -p 5000:5000 --env-file .env genphish-ai-engine:prod
 - `GET /healthz`
 - `POST /api/generate` (manual generation trigger)
 - `GET /api/templates/{template_id}` (campaign fallback endpoint)
+- `POST /api/templates/{template_id}/clone` (duplicate existing template for a new campaign)
 
 ## Tests
 
@@ -172,4 +186,5 @@ Request-level overrides are also supported with `provider` and `model` fields.
 - `ONLY_EMAIL` and `ONLY_LANDING_PAGE` regeneration scopes are supported when `existingMongoTemplateId` exists.
 - Set `KAFKA_ENABLED=false` for local API-only development without Kafka.
 - Generation timeout is controlled by `GENERATION_TIMEOUT_SECONDS` (default `15`).
+- Strict behavior is default: timeout/error -> `FAILED`. Enable fallback per request with `allowFallbackTemplate=true`.
 - For production, configure network-level authentication for Kafka and MongoDB.

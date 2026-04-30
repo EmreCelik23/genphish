@@ -18,4 +18,5 @@ public class AiGenerationResponseEvent {
     private String mongoTemplateId;   // Reference to AI-generated content in MongoDB
     private AiGenerationStatus status;
     private String errorMessage;      // Populated if status is FAILED
+    private Boolean fallbackUsed;     // true ise içerik fallback template üzerinden üretildi
 }
