@@ -2,6 +2,7 @@ package com.genphish.campaign.entity;
 
 import com.genphish.campaign.entity.enums.CampaignStatus;
 import com.genphish.campaign.entity.enums.DifficultyLevel;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.TargetingType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -51,6 +52,16 @@ public class Campaign {
     @Enumerated(EnumType.STRING)
     @Column(name = "difficulty_level")
     private DifficultyLevel difficultyLevel; // AMATEUR or PROFESSIONAL
+
+    @Column(name = "ai_language_code")
+    @Builder.Default
+    private LanguageCode aiLanguageCode = LanguageCode.TR; // Template content language
+
+    @Column(name = "ai_provider")
+    private String aiProvider; // openai, anthropic, gemini, stub
+
+    @Column(name = "ai_model")
+    private String aiModel; // provider-specific model override
 
     @Column(name = "static_template_id")
     private UUID staticTemplateId; // Static mode: reference to phishing_templates table

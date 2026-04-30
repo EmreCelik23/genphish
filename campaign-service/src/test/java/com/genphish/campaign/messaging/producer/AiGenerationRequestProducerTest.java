@@ -3,6 +3,7 @@ package com.genphish.campaign.messaging.producer;
 import com.genphish.campaign.config.KafkaConfig;
 import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.enums.DifficultyLevel;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.RegenerationScope;
 import com.genphish.campaign.messaging.event.AiGenerationRequestEvent;
 import org.junit.jupiter.api.Test;
@@ -54,7 +55,10 @@ class AiGenerationRequestProducerTest {
         assertThat(event.getCompanyId()).isEqualTo(companyId);
         assertThat(event.getPrompt()).isEqualTo("Generate realistic HR email");
         assertThat(event.getTargetUrl()).isEqualTo("https://example.com/login");
-        assertThat(event.getDifficultyLevel()).isEqualTo("PROFESSIONAL");
+        assertThat(event.getDifficultyLevel()).isEqualTo(DifficultyLevel.PROFESSIONAL.name());
+        assertThat(event.getLanguageCode()).isEqualTo(LanguageCode.TR);
+        assertThat(event.getProvider()).isNull();
+        assertThat(event.getModel()).isNull();
         assertThat(event.getRegenerationScope()).isEqualTo(RegenerationScope.ALL);
         assertThat(event.getExistingMongoTemplateId()).isNull();
     }
@@ -69,6 +73,9 @@ class AiGenerationRequestProducerTest {
                 .aiPrompt("Regenerate landing page")
                 .targetUrl("https://portal.example")
                 .difficultyLevel(DifficultyLevel.AMATEUR)
+                .aiLanguageCode(LanguageCode.EN)
+                .aiProvider("openai")
+                .aiModel("gpt-4o-mini")
                 .build();
 
         producer.sendGenerationRequest(campaign, RegenerationScope.ONLY_LANDING_PAGE, "mongo-123");
@@ -81,6 +88,9 @@ class AiGenerationRequestProducerTest {
         );
 
         AiGenerationRequestEvent event = eventCaptor.getValue();
+        assertThat(event.getLanguageCode()).isEqualTo(LanguageCode.EN);
+        assertThat(event.getProvider()).isEqualTo("openai");
+        assertThat(event.getModel()).isEqualTo("gpt-4o-mini");
         assertThat(event.getRegenerationScope()).isEqualTo(RegenerationScope.ONLY_LANDING_PAGE);
         assertThat(event.getExistingMongoTemplateId()).isEqualTo("mongo-123");
     }

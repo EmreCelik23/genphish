@@ -25,7 +25,7 @@ This service is intentionally narrow and optimized for those goals.
 ## Privacy by design
 
 `/track/submit` does not parse, store, or forward credential fields.
-Only telemetry metadata (`campaignId`, `employeeId`, `companyId`, `eventType`, `timestamp`) is emitted.
+Only telemetry metadata is emitted. Credential fields are never read or stored.
 
 ## API surface
 
@@ -45,8 +45,10 @@ Accepted aliases:
 - Campaign id: `c`, `campaign_id`, `campaignId`
 - Employee id: `e`, `employee_id`, `employeeId`, `user_id`, `userId`
 - Company id: `co`, `company_id`, `companyId`
+- Language (optional passthrough): `lang`, `language`, `languageCode`
 
 If ids are missing or invalid, the service still returns safe fallback responses (pixel or redirect) and avoids crashing request flow.
+When language is present, redirect URLs preserve normalized `lang=TR|EN`.
 
 ## Event contract
 
@@ -60,7 +62,9 @@ Payload:
   "employeeId": "uuid",
   "companyId": "uuid",
   "eventType": "EMAIL_OPENED | LINK_CLICKED | CREDENTIALS_SUBMITTED",
-  "timestamp": "2026-04-29T10:00:00Z"
+  "timestamp": "2026-04-29T10:00:00Z",
+  "userAgent": "optional-string",
+  "ipAddress": "optional-string"
 }
 ```
 

@@ -7,6 +7,7 @@ import com.genphish.campaign.config.KafkaConfig;
 import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.Employee;
 import com.genphish.campaign.entity.PhishingTemplate;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.messaging.event.EmailDeliveryEvent;
 import com.genphish.campaign.repository.CampaignRepository;
 import com.genphish.campaign.repository.CampaignTargetRepository;
@@ -76,16 +77,19 @@ public class EmailDeliveryProducer {
 
         String emailSubject = templateContent.subject();
         String emailBodyHtml = templateContent.bodyHtml();
+        String languageCode = campaign.getAiLanguageCode() != null
+                ? campaign.getAiLanguageCode().name()
+                : LanguageCode.TR.name();
 
         // 3. Assemble Fat Events and Push to Kafka
         for (Employee emp : targets) {
             String trackingPixelUrl = String.format(
-                    "%s/track/open?c=%s&e=%s&co=%s",
-                    trackerBaseUrl, campaign.getId(), emp.getId(), campaign.getCompanyId()
+                    "%s/track/open?c=%s&e=%s&co=%s&lang=%s",
+                    trackerBaseUrl, campaign.getId(), emp.getId(), campaign.getCompanyId(), languageCode
             );
             String phishingLinkUrl = String.format(
-                    "%s/track/click?c=%s&e=%s&co=%s",
-                    trackerBaseUrl, campaign.getId(), emp.getId(), campaign.getCompanyId()
+                    "%s/track/click?c=%s&e=%s&co=%s&lang=%s",
+                    trackerBaseUrl, campaign.getId(), emp.getId(), campaign.getCompanyId(), languageCode
             );
 
             // Prepare the HTML content by replacing tags like {{name}} or {{department}}.

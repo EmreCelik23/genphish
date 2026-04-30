@@ -34,6 +34,9 @@ public class CreateCampaignRequest {
     // AI mode fields (required when isAiGenerated = true)
     private String aiPrompt; // Scenario description for the LLM
     private String targetUrl; // URL to clone for landing page
+    private String languageCode; // Optional: TR or EN (default TR)
+    private String aiProvider; // Optional: openai, anthropic, gemini, stub
+    private String aiModel; // Optional: provider-specific model override
 
     @NotNull(message = "Difficulty level must be specified")
     private DifficultyLevel difficultyLevel; // AMATEUR or PROFESSIONAL

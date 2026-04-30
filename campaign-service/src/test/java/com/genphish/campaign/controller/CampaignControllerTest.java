@@ -6,6 +6,7 @@ import com.genphish.campaign.dto.request.RegenerateAiCampaignRequest;
 import com.genphish.campaign.dto.response.CampaignResponse;
 import com.genphish.campaign.entity.enums.CampaignStatus;
 import com.genphish.campaign.entity.enums.DifficultyLevel;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.RegenerationScope;
 import com.genphish.campaign.entity.enums.TargetingType;
 import com.genphish.campaign.service.CampaignService;
@@ -59,6 +60,9 @@ class CampaignControllerTest {
         request.setAiPrompt("Generate a password reset campaign");
         request.setTargetUrl("https://portal.example.com");
         request.setDifficultyLevel(DifficultyLevel.PROFESSIONAL);
+        request.setLanguageCode("EN");
+        request.setAiProvider("openai");
+        request.setAiModel("gpt-4o-mini");
 
         CampaignResponse response = CampaignResponse.builder()
                 .id(campaignId)
@@ -66,6 +70,9 @@ class CampaignControllerTest {
                 .name("Q2 Security Drill")
                 .targetingType(TargetingType.ALL_COMPANY)
                 .isAiGenerated(true)
+                .languageCode(LanguageCode.EN)
+                .aiProvider("openai")
+                .aiModel("gpt-4o-mini")
                 .status(CampaignStatus.GENERATING)
                 .build();
 
@@ -76,7 +83,10 @@ class CampaignControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(campaignId.toString()))
-                .andExpect(jsonPath("$.name").value("Q2 Security Drill"));
+                .andExpect(jsonPath("$.name").value("Q2 Security Drill"))
+                .andExpect(jsonPath("$.languageCode").value("EN"))
+                .andExpect(jsonPath("$.aiProvider").value("openai"))
+                .andExpect(jsonPath("$.aiModel").value("gpt-4o-mini"));
     }
 
     @Test

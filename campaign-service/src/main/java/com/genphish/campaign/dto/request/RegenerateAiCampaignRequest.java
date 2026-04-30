@@ -18,4 +18,9 @@ public class RegenerateAiCampaignRequest {
     
     // Optional. If provided, replaces the old prompt. If null, re-uses the old prompt.
     private String newPrompt;
+
+    // Optional runtime AI overrides
+    private String languageCode; // TR or EN
+    private String aiProvider;   // openai, anthropic, gemini, stub
+    private String aiModel;      // provider-specific model name
 }

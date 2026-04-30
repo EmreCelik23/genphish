@@ -1,0 +1,27 @@
+.git
+.gitignore
+.dockerignore
+.idea
+.vscode
+*.iml
+.DS_Store
+
+# Local secrets and env files
+.env
+.env.*
+
+# Python caches and artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.venv/
+venv/
+
+# Local docs and tests not needed for runtime image
+README.md
+tests/

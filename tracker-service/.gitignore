@@ -3,6 +3,7 @@
 /dist/
 /coverage.out
 *.test
+.gocache/
 
 # Local environment files
 .env

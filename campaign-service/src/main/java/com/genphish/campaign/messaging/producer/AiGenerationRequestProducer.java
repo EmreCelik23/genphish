@@ -2,6 +2,8 @@ package com.genphish.campaign.messaging.producer;
 
 import com.genphish.campaign.config.KafkaConfig;
 import com.genphish.campaign.entity.Campaign;
+import com.genphish.campaign.entity.enums.DifficultyLevel;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.RegenerationScope;
 import com.genphish.campaign.messaging.event.AiGenerationRequestEvent;
 import lombok.RequiredArgsConstructor;
@@ -23,12 +25,22 @@ public class AiGenerationRequestProducer {
 
     // Overloaded method to support partial regeneration
     public void sendGenerationRequest(Campaign campaign, RegenerationScope scope, String existingMongoTemplateId) {
+        String difficultyLevel = campaign.getDifficultyLevel() != null
+                ? campaign.getDifficultyLevel().name()
+                : DifficultyLevel.PROFESSIONAL.name(); // Default to PROFESSIONAL if not set
+        LanguageCode languageCode = campaign.getAiLanguageCode() != null
+                ? campaign.getAiLanguageCode()
+                : LanguageCode.TR;
+
         AiGenerationRequestEvent event = AiGenerationRequestEvent.builder()
                 .campaignId(campaign.getId())
                 .companyId(campaign.getCompanyId())
                 .prompt(campaign.getAiPrompt())
                 .targetUrl(campaign.getTargetUrl())
-                .difficultyLevel(campaign.getDifficultyLevel().name())
+                .difficultyLevel(difficultyLevel)
+                .languageCode(languageCode)
+                .provider(campaign.getAiProvider())
+                .model(campaign.getAiModel())
                 .regenerationScope(scope)
                 .existingMongoTemplateId(existingMongoTemplateId)
                 .build();

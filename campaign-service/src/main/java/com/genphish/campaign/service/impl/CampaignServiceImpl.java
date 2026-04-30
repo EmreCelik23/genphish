@@ -6,6 +6,7 @@ import com.genphish.campaign.dto.response.CampaignResponse;
 import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.CampaignTarget;
 import com.genphish.campaign.entity.enums.CampaignStatus;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.TargetingType;
 import com.genphish.campaign.exception.InvalidOperationException;
 import com.genphish.campaign.exception.ResourceNotFoundException;
@@ -77,6 +78,15 @@ public class CampaignServiceImpl implements CampaignService {
         // Update prompt if provided
         if (request.getNewPrompt() != null && !request.getNewPrompt().isBlank()) {
             campaign.setAiPrompt(request.getNewPrompt());
+        }
+        if (request.getLanguageCode() != null && !request.getLanguageCode().isBlank()) {
+            campaign.setAiLanguageCode(normalizeLanguageCode(request.getLanguageCode()));
+        }
+        if (request.getAiProvider() != null && !request.getAiProvider().isBlank()) {
+            campaign.setAiProvider(normalizeProvider(request.getAiProvider()));
+        }
+        if (request.getAiModel() != null && !request.getAiModel().isBlank()) {
+            campaign.setAiModel(request.getAiModel().trim());
         }
 
         // Set status to generating
@@ -209,6 +219,9 @@ public class CampaignServiceImpl implements CampaignService {
                 .aiPrompt(request.getAiPrompt())
                 .targetUrl(request.getTargetUrl())
                 .difficultyLevel(request.getDifficultyLevel())
+                .aiLanguageCode(normalizeLanguageCode(request.getLanguageCode()))
+                .aiProvider(normalizeProvider(request.getAiProvider()))
+                .aiModel(normalizeOptional(request.getAiModel()))
                 .staticTemplateId(request.getStaticTemplateId())
                 .qrCodeEnabled(request.isQrCodeEnabled())
                 .status(CampaignStatus.DRAFT)
@@ -252,11 +265,34 @@ public class CampaignServiceImpl implements CampaignService {
                 .aiPrompt(campaign.getAiPrompt())
                 .targetUrl(campaign.getTargetUrl())
                 .difficultyLevel(campaign.getDifficultyLevel())
+                .languageCode(campaign.getAiLanguageCode())
+                .aiProvider(campaign.getAiProvider())
+                .aiModel(campaign.getAiModel())
                 .staticTemplateId(campaign.getStaticTemplateId())
                 .qrCodeEnabled(campaign.isQrCodeEnabled())
                 .status(campaign.getStatus())
                 .scheduledFor(campaign.getScheduledFor())
                 .createdAt(campaign.getCreatedAt())
                 .build();
+    }
+
+    private LanguageCode normalizeLanguageCode(String value) {
+        return LanguageCode.fromNullable(value);
+    }
+
+    private String normalizeProvider(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            return null;
+        }
+        return normalized.toLowerCase();
+    }
+
+    private String normalizeOptional(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isBlank() ? null : normalized;
     }
 }

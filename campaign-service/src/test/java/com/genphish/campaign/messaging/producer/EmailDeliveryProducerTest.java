@@ -7,6 +7,7 @@ import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.Employee;
 import com.genphish.campaign.entity.PhishingTemplate;
 import com.genphish.campaign.entity.enums.CampaignStatus;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.TargetingType;
 import com.genphish.campaign.messaging.event.EmailDeliveryEvent;
 import com.genphish.campaign.repository.CampaignRepository;
@@ -100,6 +101,7 @@ class EmailDeliveryProducerTest {
                 .companyId(companyId)
                 .targetingType(TargetingType.ALL_COMPANY)
                 .isAiGenerated(false)
+                .aiLanguageCode(LanguageCode.EN)
                 .staticTemplateId(templateId)
                 .qrCodeEnabled(true)
                 .build();
@@ -140,6 +142,8 @@ class EmailDeliveryProducerTest {
         assertThat(event.getEmailSubject()).isEqualTo("Critical security update");
         assertThat(event.getTrackingPixelUrl()).contains("http://tracker.local/track/open");
         assertThat(event.getPhishingLinkUrl()).contains("http://tracker.local/track/click");
+        assertThat(event.getTrackingPixelUrl()).contains("lang=EN");
+        assertThat(event.getPhishingLinkUrl()).contains("lang=EN");
         assertThat(event.getEmailBodyHtml()).contains("Hello Ayse from IT");
         assertThat(event.getEmailBodyHtml()).doesNotContain("{{name}}", "{{department}}", "{{phishing_link}}");
         assertThat(event.getEmailBodyHtml()).contains("<img src=\"http://tracker.local/track/open?c=");

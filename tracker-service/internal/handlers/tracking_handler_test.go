@@ -167,6 +167,37 @@ func TestTrackClickRedirectSupportsCampaignIdPathPlaceholder(t *testing.T) {
 	}
 }
 
+func TestTrackClickPropagatesLanguageCode(t *testing.T) {
+	publisher := &mockEventPublisher{}
+	router := newTestRouter(publisher)
+
+	campaignID := uuid.New()
+	employeeID := uuid.New()
+	companyID := uuid.New()
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&lang=en-US",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+
+	location := rec.Header().Get("Location")
+	parsed, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("expected valid redirect URL, got parse error: %v", err)
+	}
+	if parsed.Query().Get("lang") != "EN" {
+		t.Fatalf("expected normalized lang=EN in redirect, got %s", parsed.Query().Get("lang"))
+	}
+}
+
 func TestTrackSubmitPublishesAndRedirectsToAwareness(t *testing.T) {
 	publisher := &mockEventPublisher{}
 	router := newTestRouter(publisher)
@@ -191,6 +222,37 @@ func TestTrackSubmitPublishesAndRedirectsToAwareness(t *testing.T) {
 	}
 	if len(publisher.events) != 1 || publisher.events[0].EventType != models.EventCredentialsSubmitted {
 		t.Fatalf("expected CREDENTIALS_SUBMITTED event to be published")
+	}
+}
+
+func TestTrackSubmitPropagatesLanguageCode(t *testing.T) {
+	publisher := &mockEventPublisher{}
+	router := newTestRouter(publisher)
+
+	campaignID := uuid.New()
+	employeeID := uuid.New()
+	companyID := uuid.New()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/track/submit?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&languageCode=tr-TR",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+
+	location := rec.Header().Get("Location")
+	parsed, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("expected valid redirect URL, got parse error: %v", err)
+	}
+	if parsed.Query().Get("lang") != "TR" {
+		t.Fatalf("expected normalized lang=TR in redirect, got %s", parsed.Query().Get("lang"))
 	}
 }
 
@@ -225,6 +287,35 @@ func TestTrackClickMissingIDsSkipsPublishAndRedirectsBaseURL(t *testing.T) {
 	}
 	if location := rec.Header().Get("Location"); location != "http://localhost:3000/phishing" {
 		t.Fatalf("expected base landing redirect, got %s", location)
+	}
+	if publisher.publishCalls != 0 {
+		t.Fatalf("expected no publish attempts, got %d", publisher.publishCalls)
+	}
+}
+
+func TestTrackClickMissingIDsStillPropagatesLanguageIfProvided(t *testing.T) {
+	publisher := &mockEventPublisher{}
+	router := newTestRouter(publisher)
+
+	req := httptest.NewRequest(http.MethodGet, "/track/click?c="+uuid.New().String()+"&lang=english", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+
+	location := rec.Header().Get("Location")
+	if !strings.HasPrefix(location, "http://localhost:3000/phishing?") {
+		t.Fatalf("expected landing redirect with language query, got %s", location)
+	}
+	parsed, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("expected valid redirect URL, got parse error: %v", err)
+	}
+	if parsed.Query().Get("lang") != "EN" {
+		t.Fatalf("expected lang=EN, got %s", parsed.Query().Get("lang"))
 	}
 	if publisher.publishCalls != 0 {
 		t.Fatalf("expected no publish attempts, got %d", publisher.publishCalls)
@@ -344,7 +435,7 @@ func TestAppendTrackingQueryPreservesExistingQueryValues(t *testing.T) {
 		employeeID: uuid.New(),
 		companyID:  uuid.New(),
 	}
-	result := appendTrackingQuery("http://localhost:3000/phishing?source=email", ids)
+	result := appendTrackingQuery("http://localhost:3000/phishing?source=email", ids, "EN")
 
 	parsed, err := url.Parse(result)
 	if err != nil {
@@ -362,6 +453,9 @@ func TestAppendTrackingQueryPreservesExistingQueryValues(t *testing.T) {
 	if parsed.Query().Get("co") != ids.companyID.String() {
 		t.Fatalf("expected company id query param to be set")
 	}
+	if parsed.Query().Get("lang") != "EN" {
+		t.Fatalf("expected language query param to be set")
+	}
 }
 
 func TestAppendTrackingQueryReturnsReplacedBaseWhenURLIsInvalid(t *testing.T) {
@@ -371,7 +465,7 @@ func TestAppendTrackingQueryReturnsReplacedBaseWhenURLIsInvalid(t *testing.T) {
 		companyID:  uuid.New(),
 	}
 	base := "://bad-host/phishing/{campaignId}"
-	got := appendTrackingQuery(base, ids)
+	got := appendTrackingQuery(base, ids, "TR")
 
 	expected := strings.Replace(base, "{campaignId}", ids.campaignID.String(), 1)
 	if got != expected {

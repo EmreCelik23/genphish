@@ -68,28 +68,32 @@ func (h *TrackingHandler) TrackOpen(c *gin.Context) {
 }
 
 func (h *TrackingHandler) TrackClick(c *gin.Context) {
+	languageCode := extractLanguageCode(c)
+
 	ids, err := extractTrackingIDs(c)
 	if err != nil {
 		h.logger.Printf("click tracking skipped: %v", err)
-		c.Redirect(http.StatusFound, h.landingURL)
+		c.Redirect(http.StatusFound, appendLanguageQuery(h.landingURL, languageCode))
 		return
 	}
 
 	h.publish(c, ids, models.EventLinkClicked)
-	c.Redirect(http.StatusFound, appendTrackingQuery(h.landingURL, ids))
+	c.Redirect(http.StatusFound, appendTrackingQuery(h.landingURL, ids, languageCode))
 }
 
 func (h *TrackingHandler) TrackSubmit(c *gin.Context) {
+	languageCode := extractLanguageCode(c)
+
 	ids, err := extractTrackingIDs(c)
 	if err != nil {
 		h.logger.Printf("submit tracking skipped: %v", err)
-		c.Redirect(http.StatusFound, h.awarenessURL)
+		c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
 		return
 	}
 
 	// Intentionally ignores credential fields by design. Only event telemetry is emitted.
 	h.publish(c, ids, models.EventCredentialsSubmitted)
-	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids))
+	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode))
 }
 
 func (h *TrackingHandler) publish(c *gin.Context, ids trackingIDs, eventType models.TrackingEventType) {
@@ -161,7 +165,7 @@ func writeTransparentPixel(c *gin.Context) {
 	c.Data(http.StatusOK, "image/gif", transparentPixelGIF)
 }
 
-func appendTrackingQuery(base string, ids trackingIDs) string {
+func appendTrackingQuery(base string, ids trackingIDs, languageCode string) string {
 	withCampaignPath := strings.Replace(base, "{campaignId}", ids.campaignID.String(), 1)
 
 	parsed, err := url.Parse(withCampaignPath)
@@ -175,8 +179,47 @@ func appendTrackingQuery(base string, ids trackingIDs) string {
 	}
 	query.Set("e", ids.employeeID.String())
 	query.Set("co", ids.companyID.String())
+	if languageCode != "" {
+		query.Set("lang", languageCode)
+	}
 	parsed.RawQuery = query.Encode()
 	return parsed.String()
+}
+
+func appendLanguageQuery(base string, languageCode string) string {
+	if languageCode == "" {
+		return base
+	}
+
+	parsed, err := url.Parse(base)
+	if err != nil {
+		return base
+	}
+
+	query := parsed.Query()
+	query.Set("lang", languageCode)
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
+func extractLanguageCode(c *gin.Context) string {
+	raw := firstNonEmpty(
+		c.Query("lang"),
+		c.Query("language"),
+		c.Query("languageCode"),
+	)
+	if raw == "" {
+		return ""
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	if strings.HasPrefix(normalized, "en") || normalized == "english" || normalized == "ingilizce" {
+		return "EN"
+	}
+	if strings.HasPrefix(normalized, "tr") || normalized == "turkish" || normalized == "turkce" || normalized == "türkçe" {
+		return "TR"
+	}
+	return ""
 }
 
 func firstNonEmpty(values ...string) string {

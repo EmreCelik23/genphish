@@ -2,6 +2,7 @@ package com.genphish.campaign.dto.response;
 
 import com.genphish.campaign.entity.enums.CampaignStatus;
 import com.genphish.campaign.entity.enums.DifficultyLevel;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.TargetingType;
 import lombok.Builder;
 import lombok.Data;
@@ -21,6 +22,9 @@ public class CampaignResponse {
     private String aiPrompt;
     private String targetUrl;
     private DifficultyLevel difficultyLevel;
+    private LanguageCode languageCode;
+    private String aiProvider;
+    private String aiModel;
     private UUID staticTemplateId;
     private boolean qrCodeEnabled;
     private CampaignStatus status;

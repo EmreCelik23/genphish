@@ -7,6 +7,7 @@ import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.Employee;
 import com.genphish.campaign.entity.enums.CampaignStatus;
 import com.genphish.campaign.entity.enums.DifficultyLevel;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.RegenerationScope;
 import com.genphish.campaign.entity.enums.TargetingType;
 import com.genphish.campaign.exception.InvalidOperationException;
@@ -122,6 +123,9 @@ class CampaignServiceImplAdditionalTest {
         request.setAiPrompt("prompt");
         request.setTargetUrl("https://example.com");
         request.setDifficultyLevel(DifficultyLevel.AMATEUR);
+        request.setLanguageCode("en");
+        request.setAiProvider("claude");
+        request.setAiModel("claude-3-5-sonnet-latest");
         request.setQrCodeEnabled(true);
 
         when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -129,6 +133,9 @@ class CampaignServiceImplAdditionalTest {
         CampaignResponse response = campaignService.createCampaign(companyId, request);
 
         assertThat(response.isQrCodeEnabled()).isTrue();
+        assertThat(response.getLanguageCode()).isEqualTo(LanguageCode.EN);
+        assertThat(response.getAiProvider()).isEqualTo("anthropic");
+        assertThat(response.getAiModel()).isEqualTo("claude-3-5-sonnet-latest");
         verify(aiGenerationRequestProducer).sendGenerationRequest(any(Campaign.class));
     }
 
@@ -172,12 +179,18 @@ class CampaignServiceImplAdditionalTest {
         RegenerateAiCampaignRequest request = RegenerateAiCampaignRequest.builder()
                 .scope(RegenerationScope.ONLY_EMAIL)
                 .newPrompt("new prompt")
+                .languageCode("en-US")
+                .aiProvider("google")
+                .aiModel("gemini-1.5-pro")
                 .build();
 
         CampaignResponse response = campaignService.regenerateAiContent(companyId, campaignId, request);
 
         assertThat(response.getStatus()).isEqualTo(CampaignStatus.GENERATING);
         assertThat(campaign.getAiPrompt()).isEqualTo("new prompt");
+        assertThat(campaign.getAiLanguageCode()).isEqualTo(LanguageCode.EN);
+        assertThat(campaign.getAiProvider()).isEqualTo("gemini");
+        assertThat(campaign.getAiModel()).isEqualTo("gemini-1.5-pro");
         verify(aiGenerationRequestProducer).sendGenerationRequest(campaign, RegenerationScope.ONLY_EMAIL, "mongo-old");
     }
 
