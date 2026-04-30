@@ -1,0 +1,54 @@
+import unittest
+from uuid import uuid4
+
+from app.models.events import (
+    AiGenerationRequestEvent,
+    LanguageCode,
+    normalize_language_code,
+)
+from app.models.template import TemplateDocument
+from app.services.generator import RoutingContentGenerator
+
+
+class ModelsAndUtilsTests(unittest.TestCase):
+    def test_language_normalization_aliases(self) -> None:
+        self.assertEqual(normalize_language_code("en-us"), LanguageCode.EN)
+        self.assertEqual(normalize_language_code("türkçe"), LanguageCode.TR)
+        self.assertEqual(normalize_language_code("unknown"), LanguageCode.TR)
+
+    def test_request_event_parses_language_alias(self) -> None:
+        event = AiGenerationRequestEvent(
+            campaignId=uuid4(),
+            companyId=uuid4(),
+            language="english",
+        )
+        self.assertEqual(event.language_code, LanguageCode.EN)
+        dumped = event.model_dump(by_alias=True, mode="json")
+        self.assertEqual(dumped["languageCode"], "EN")
+
+    def test_template_to_mongo_serializes_uuid_and_enum_values(self) -> None:
+        campaign_id = uuid4()
+        company_id = uuid4()
+        template = TemplateDocument(
+            campaignId=campaign_id,
+            companyId=company_id,
+            languageCode=LanguageCode.TR,
+            subject="Subject",
+            bodyHtml="<p>Hello</p>",
+            landingPageCode="export default function Page() { return null; }",
+            llmProvider="stub",
+            llmModel="stub-generator-v1",
+        )
+        payload = template.to_mongo()
+        self.assertEqual(payload["campaignId"], str(campaign_id))
+        self.assertEqual(payload["companyId"], str(company_id))
+        self.assertEqual(payload["languageCode"], "TR")
+
+    def test_provider_alias_mapping(self) -> None:
+        self.assertEqual(RoutingContentGenerator._normalize_provider("google"), "gemini")
+        self.assertEqual(RoutingContentGenerator._normalize_provider("claude"), "anthropic")
+        self.assertEqual(RoutingContentGenerator._normalize_provider("chatgpt"), "openai")
+
+
+if __name__ == "__main__":
+    unittest.main()

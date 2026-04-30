@@ -1,0 +1,11 @@
+Create a phishing-simulation training email based on:
+- Department context: {department_hint}
+- Difficulty: {difficulty_level}
+- Scenario prompt: {prompt}
+- Optional target URL context: {target_url}
+- Target language: {language_label}
+- Language rule: {language_instruction}
+
+Output must contain:
+1) subject: email subject line
+2) body_html: full HTML body using placeholders {{{{name}}}}, {{{{department}}}}, {{{{phishing_link}}}}

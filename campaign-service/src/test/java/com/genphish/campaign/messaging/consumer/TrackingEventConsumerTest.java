@@ -13,7 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -47,7 +47,7 @@ class TrackingEventConsumerTest {
                 .companyId(companyId)
                 .employeeId(employeeId)
                 .eventType("EMAIL_OPENED")
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .build();
 
         when(trackingEventRepository.existsByCampaignIdAndEmployeeIdAndEventType(
@@ -67,7 +67,7 @@ class TrackingEventConsumerTest {
                 .companyId(UUID.randomUUID())
                 .employeeId(UUID.randomUUID())
                 .eventType("NOT_A_REAL_EVENT")
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .build();
 
         consumer.consume(message);
@@ -93,7 +93,7 @@ class TrackingEventConsumerTest {
                 .companyId(companyId)
                 .employeeId(employeeId)
                 .eventType("EMAIL_OPENED")
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .build();
 
         when(trackingEventRepository.existsByCampaignIdAndEmployeeIdAndEventType(
@@ -130,7 +130,7 @@ class TrackingEventConsumerTest {
                 .companyId(companyId)
                 .employeeId(employeeId)
                 .eventType("LINK_CLICKED")
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .build();
 
         when(trackingEventRepository.existsByCampaignIdAndEmployeeIdAndEventType(

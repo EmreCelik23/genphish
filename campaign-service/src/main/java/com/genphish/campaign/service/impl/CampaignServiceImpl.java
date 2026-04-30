@@ -285,7 +285,15 @@ public class CampaignServiceImpl implements CampaignService {
         if (normalized == null) {
             return null;
         }
-        return normalized.toLowerCase();
+
+        String lower = normalized.toLowerCase();
+        return switch (lower) {
+            case "gpt", "chatgpt", "openai" -> "openai";
+            case "claude", "anthropic" -> "anthropic";
+            case "google", "google-genai", "gemini" -> "gemini";
+            case "stub" -> "stub";
+            default -> lower;
+        };
     }
 
     private String normalizeOptional(String value) {

@@ -11,7 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Component
 @RequiredArgsConstructor
@@ -51,13 +53,15 @@ public class TrackingEventConsumer {
             return;
         }
 
+        LocalDateTime occurredAt = toLocalDateTimeUtc(message.getTimestamp());
+
         // 1. Save tracking event to PostgreSQL
         TrackingEvent trackingEvent = TrackingEvent.builder()
                 .campaignId(message.getCampaignId())
                 .employeeId(message.getEmployeeId())
                 .companyId(message.getCompanyId())
                 .eventType(eventType)
-                .occurredAt(message.getTimestamp() != null ? message.getTimestamp() : LocalDateTime.now())
+                .occurredAt(occurredAt)
                 .build();
 
         trackingEventRepository.save(trackingEvent);
@@ -78,17 +82,24 @@ public class TrackingEventConsumer {
                             .employeeId(message.getEmployeeId())
                             .companyId(message.getCompanyId())
                             .eventType(TrackingEventType.EMAIL_OPENED)
-                            .occurredAt(message.getTimestamp() != null ? message.getTimestamp() : LocalDateTime.now())
+                            .occurredAt(occurredAt)
                             .build();
                     trackingEventRepository.save(impliedOpen);
                 }
             
 
             employee.setRiskScore(Math.min(employee.getRiskScore() + increment, 100.0)); // Cap at 100
-            employee.setLastPhishedAt(LocalDateTime.now());
+            employee.setLastPhishedAt(LocalDateTime.now(ZoneOffset.UTC));
             employeeRepository.save(employee);
 
             log.info("Employee {} risk score updated to {}", employee.getId(), employee.getRiskScore());
         });
+    }
+
+    private LocalDateTime toLocalDateTimeUtc(Instant timestamp) {
+        if (timestamp == null) {
+            return LocalDateTime.now(ZoneOffset.UTC);
+        }
+        return LocalDateTime.ofInstant(timestamp, ZoneOffset.UTC);
     }
 }

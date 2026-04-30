@@ -1,0 +1,171 @@
+from datetime import datetime, timezone
+from enum import Enum, StrEnum
+from uuid import UUID
+
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+
+
+class RegenerationScope(str, Enum):
+    ALL = "ALL"
+    ONLY_EMAIL = "ONLY_EMAIL"
+    ONLY_LANDING_PAGE = "ONLY_LANDING_PAGE"
+
+
+class AiGenerationStatus(str, Enum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+
+
+class LanguageCode(StrEnum):
+    TR = "TR"
+    EN = "EN"
+
+
+def normalize_language_code(value: str | LanguageCode | None) -> LanguageCode:
+    if isinstance(value, LanguageCode):
+        return value
+    if value is None:
+        return LanguageCode.TR
+    normalized = str(value).strip().lower()
+    if normalized in {"tr", "tr-tr", "turkish", "turkce", "türkçe"}:
+        return LanguageCode.TR
+    if normalized in {"en", "en-us", "en-gb", "english", "ingilizce"}:
+        return LanguageCode.EN
+    return LanguageCode.TR
+
+
+def normalize_difficulty_level(value: str | None) -> str:
+    if value is None:
+        return "AMATEUR"
+    normalized = str(value).strip().upper()
+    return normalized or "AMATEUR"
+
+
+def normalize_regeneration_scope(value: str | RegenerationScope | None) -> str | RegenerationScope:
+    if value is None:
+        return RegenerationScope.ALL
+    if isinstance(value, str) and not value.strip():
+        return RegenerationScope.ALL
+    return value
+
+
+def normalize_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+class AiGenerationRequestEvent(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    campaign_id: UUID = Field(alias="campaignId")
+    company_id: UUID = Field(alias="companyId")
+    prompt: str | None = None
+    target_url: str | None = Field(default=None, alias="targetUrl")
+    difficulty_level: str = Field(default="AMATEUR", alias="difficultyLevel")
+    regeneration_scope: RegenerationScope = Field(default=RegenerationScope.ALL, alias="regenerationScope")
+    existing_mongo_template_id: str | None = Field(default=None, alias="existingMongoTemplateId")
+    language_code: LanguageCode = Field(
+        default=LanguageCode.TR,
+        alias="languageCode",
+        validation_alias=AliasChoices("languageCode", "language"),
+    )
+    provider: str | None = Field(
+        default=None,
+        alias="provider",
+        validation_alias=AliasChoices("provider", "aiProvider", "modelProvider"),
+    )
+    model_name: str | None = Field(
+        default=None,
+        alias="model",
+        validation_alias=AliasChoices("model", "modelName", "llmModel"),
+    )
+
+    @field_validator("difficulty_level", mode="before")
+    @classmethod
+    def normalize_difficulty_level(cls, value: str | None) -> str:
+        return normalize_difficulty_level(value)
+
+    @field_validator("regeneration_scope", mode="before")
+    @classmethod
+    def normalize_regeneration_scope(cls, value: str | RegenerationScope | None) -> str | RegenerationScope:
+        return normalize_regeneration_scope(value)
+
+    @field_validator("language_code", mode="before")
+    @classmethod
+    def normalize_language_code(cls, value: str | LanguageCode | None) -> LanguageCode:
+        return normalize_language_code(value)
+
+    @field_validator("provider", "model_name", mode="before")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None) -> str | None:
+        return normalize_optional_text(value)
+
+
+class AiGenerationResponseEvent(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    campaign_id: UUID = Field(alias="campaignId")
+    mongo_template_id: str | None = Field(default=None, alias="mongoTemplateId")
+    status: AiGenerationStatus
+    error_message: str | None = Field(default=None, alias="errorMessage")
+
+
+class ManualGenerateRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    campaign_id: UUID = Field(alias="campaignId")
+    company_id: UUID = Field(alias="companyId")
+    prompt: str
+    target_url: str | None = Field(default=None, alias="targetUrl")
+    difficulty_level: str = Field(default="AMATEUR", alias="difficultyLevel")
+    regeneration_scope: RegenerationScope = Field(default=RegenerationScope.ALL, alias="regenerationScope")
+    existing_mongo_template_id: str | None = Field(default=None, alias="existingMongoTemplateId")
+    language_code: LanguageCode = Field(
+        default=LanguageCode.TR,
+        alias="languageCode",
+        validation_alias=AliasChoices("languageCode", "language"),
+    )
+    provider: str | None = Field(
+        default=None,
+        alias="provider",
+        validation_alias=AliasChoices("provider", "aiProvider", "modelProvider"),
+    )
+    model_name: str | None = Field(
+        default=None,
+        alias="model",
+        validation_alias=AliasChoices("model", "modelName", "llmModel"),
+    )
+
+    @field_validator("difficulty_level", mode="before")
+    @classmethod
+    def normalize_manual_difficulty_level(cls, value: str | None) -> str:
+        return normalize_difficulty_level(value)
+
+    @field_validator("regeneration_scope", mode="before")
+    @classmethod
+    def normalize_manual_regeneration_scope(cls, value: str | RegenerationScope | None) -> str | RegenerationScope:
+        return normalize_regeneration_scope(value)
+
+    @field_validator("language_code", mode="before")
+    @classmethod
+    def normalize_manual_language_code(cls, value: str | LanguageCode | None) -> LanguageCode:
+        return normalize_language_code(value)
+
+    @field_validator("provider", "model_name", mode="before")
+    @classmethod
+    def normalize_manual_optional_text(cls, value: str | None) -> str | None:
+        return normalize_optional_text(value)
+
+
+class TemplateCreatedResponse(BaseModel):
+    template_id: str = Field(alias="templateId")
+    campaign_id: UUID = Field(alias="campaignId")
+    status: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), alias="createdAt")
+
+
+class ErrorResponse(BaseModel):
+    message: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
