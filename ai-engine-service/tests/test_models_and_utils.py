@@ -26,6 +26,14 @@ class ModelsAndUtilsTests(unittest.TestCase):
         dumped = event.model_dump(by_alias=True, mode="json")
         self.assertEqual(dumped["languageCode"], "EN")
 
+    def test_request_event_defaults_to_professional_and_tr(self) -> None:
+        event = AiGenerationRequestEvent(
+            campaignId=uuid4(),
+            companyId=uuid4(),
+        )
+        self.assertEqual(event.difficulty_level, "PROFESSIONAL")
+        self.assertEqual(event.language_code, LanguageCode.TR)
+
     def test_template_to_mongo_serializes_uuid_and_enum_values(self) -> None:
         campaign_id = uuid4()
         company_id = uuid4()

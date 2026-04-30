@@ -63,6 +63,7 @@ Base URL: `http://localhost:8080`
 
 AI campaign payload fields also support:
 
+- `difficultyLevel`: `AMATEUR` or `PROFESSIONAL` (default `PROFESSIONAL`)
 - `languageCode`: `TR` or `EN` (default `TR`)
 - `aiProvider`: `openai`, `anthropic`, `gemini`, `stub`
 - `aiModel`: provider-specific model override (optional)

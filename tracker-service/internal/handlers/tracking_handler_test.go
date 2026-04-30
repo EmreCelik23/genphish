@@ -285,8 +285,16 @@ func TestTrackClickMissingIDsSkipsPublishAndRedirectsBaseURL(t *testing.T) {
 	if rec.Code != http.StatusFound {
 		t.Fatalf("expected 302, got %d", rec.Code)
 	}
-	if location := rec.Header().Get("Location"); location != "http://localhost:3000/phishing" {
+	location := rec.Header().Get("Location")
+	parsed, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("expected valid redirect URL, got parse error: %v", err)
+	}
+	if parsed.Scheme != "http" || parsed.Host != "localhost:3000" || parsed.Path != "/phishing" {
 		t.Fatalf("expected base landing redirect, got %s", location)
+	}
+	if parsed.Query().Get("lang") != "TR" {
+		t.Fatalf("expected lang=TR default on fallback redirect, got %s", parsed.Query().Get("lang"))
 	}
 	if publisher.publishCalls != 0 {
 		t.Fatalf("expected no publish attempts, got %d", publisher.publishCalls)
@@ -334,8 +342,16 @@ func TestTrackSubmitMissingIDsSkipsPublishAndRedirectsBaseURL(t *testing.T) {
 	if rec.Code != http.StatusFound {
 		t.Fatalf("expected 302, got %d", rec.Code)
 	}
-	if location := rec.Header().Get("Location"); location != "http://localhost:3000/awareness" {
+	location := rec.Header().Get("Location")
+	parsed, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("expected valid redirect URL, got parse error: %v", err)
+	}
+	if parsed.Scheme != "http" || parsed.Host != "localhost:3000" || parsed.Path != "/awareness" {
 		t.Fatalf("expected base awareness redirect, got %s", location)
+	}
+	if parsed.Query().Get("lang") != "TR" {
+		t.Fatalf("expected lang=TR default on fallback redirect, got %s", parsed.Query().Get("lang"))
 	}
 	if publisher.publishCalls != 0 {
 		t.Fatalf("expected no publish attempts, got %d", publisher.publishCalls)
@@ -377,8 +393,16 @@ func TestTrackClickInvalidUUIDSkipsPublishAndRedirectsBaseURL(t *testing.T) {
 	if rec.Code != http.StatusFound {
 		t.Fatalf("expected 302, got %d", rec.Code)
 	}
-	if location := rec.Header().Get("Location"); location != "http://localhost:3000/phishing" {
+	location := rec.Header().Get("Location")
+	parsed, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("expected valid redirect URL, got parse error: %v", err)
+	}
+	if parsed.Scheme != "http" || parsed.Host != "localhost:3000" || parsed.Path != "/phishing" {
 		t.Fatalf("expected base landing redirect, got %s", location)
+	}
+	if parsed.Query().Get("lang") != "TR" {
+		t.Fatalf("expected lang=TR default on fallback redirect, got %s", parsed.Query().Get("lang"))
 	}
 	if publisher.publishCalls != 0 {
 		t.Fatalf("expected no publish attempts, got %d", publisher.publishCalls)
@@ -470,5 +494,16 @@ func TestAppendTrackingQueryReturnsReplacedBaseWhenURLIsInvalid(t *testing.T) {
 	expected := strings.Replace(base, "{campaignId}", ids.campaignID.String(), 1)
 	if got != expected {
 		t.Fatalf("expected %s, got %s", expected, got)
+	}
+}
+
+func TestExtractLanguageCodeDefaultsToTR(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/track/click", nil)
+
+	if got := extractLanguageCode(c); got != "TR" {
+		t.Fatalf("expected default TR, got %s", got)
 	}
 }

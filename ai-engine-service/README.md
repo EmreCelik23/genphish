@@ -34,7 +34,7 @@ Expected payload (camelCase):
   "companyId": "uuid",
   "prompt": "string",
   "targetUrl": "string",
-  "difficultyLevel": "AMATEUR|PROFESSIONAL",
+  "difficultyLevel": "AMATEUR|PROFESSIONAL (optional, default PROFESSIONAL)",
   "regenerationScope": "ALL|ONLY_EMAIL|ONLY_LANDING_PAGE",
   "existingMongoTemplateId": "optional-string",
   "languageCode": "TR|EN (optional, default TR)",
@@ -161,6 +161,11 @@ Request-level overrides are also supported with `provider` and `model` fields.
 - `languageCode=TR` for Turkish output (default)
 - `languageCode=EN` for English output
 - Alias `language` is accepted in requests
+
+## Difficulty support
+
+- `difficultyLevel=PROFESSIONAL` (default)
+- `difficultyLevel=AMATEUR`
 
 ## Notes
 

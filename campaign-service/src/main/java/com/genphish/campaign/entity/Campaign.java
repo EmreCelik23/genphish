@@ -51,7 +51,8 @@ public class Campaign {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "difficulty_level")
-    private DifficultyLevel difficultyLevel; // AMATEUR or PROFESSIONAL
+    @Builder.Default
+    private DifficultyLevel difficultyLevel = DifficultyLevel.PROFESSIONAL; // AMATEUR or PROFESSIONAL
 
     @Column(name = "ai_language_code")
     @Builder.Default

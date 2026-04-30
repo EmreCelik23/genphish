@@ -15,7 +15,7 @@ class TemplateDocument(BaseModel):
     company_id: UUID = Field(alias="companyId")
     prompt: str = ""
     target_url: str = ""
-    difficulty_level: str = Field(default="AMATEUR", alias="difficultyLevel")
+    difficulty_level: str = Field(default="PROFESSIONAL", alias="difficultyLevel")
     language_code: LanguageCode = Field(default=LanguageCode.TR, alias="languageCode")
 
     subject: str

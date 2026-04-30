@@ -70,7 +70,7 @@ class TemplateStore:
         if self._fallback_collection is None:
             return None
 
-        normalized_difficulty = (difficulty_level or "AMATEUR").strip().upper()
+        normalized_difficulty = (difficulty_level or "PROFESSIONAL").strip().upper()
         if isinstance(language_code, LanguageCode):
             normalized_language = language_code.value
         else:

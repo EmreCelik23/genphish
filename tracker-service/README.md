@@ -45,10 +45,10 @@ Accepted aliases:
 - Campaign id: `c`, `campaign_id`, `campaignId`
 - Employee id: `e`, `employee_id`, `employeeId`, `user_id`, `userId`
 - Company id: `co`, `company_id`, `companyId`
-- Language (optional passthrough): `lang`, `language`, `languageCode`
+- Language (`TR` default): `lang`, `language`, `languageCode`
 
 If ids are missing or invalid, the service still returns safe fallback responses (pixel or redirect) and avoids crashing request flow.
-When language is present, redirect URLs preserve normalized `lang=TR|EN`.
+Redirect URLs always include normalized `lang=TR|EN` (`TR` is default if omitted/unknown).
 
 ## Event contract
 

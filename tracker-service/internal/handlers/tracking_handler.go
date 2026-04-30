@@ -209,7 +209,7 @@ func extractLanguageCode(c *gin.Context) string {
 		c.Query("languageCode"),
 	)
 	if raw == "" {
-		return ""
+		return "TR"
 	}
 
 	normalized := strings.ToLower(strings.TrimSpace(raw))
@@ -219,7 +219,7 @@ func extractLanguageCode(c *gin.Context) string {
 	if strings.HasPrefix(normalized, "tr") || normalized == "turkish" || normalized == "turkce" || normalized == "türkçe" {
 		return "TR"
 	}
-	return ""
+	return "TR"
 }
 
 func firstNonEmpty(values ...string) string {

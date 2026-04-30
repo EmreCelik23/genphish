@@ -36,9 +36,9 @@ def normalize_language_code(value: str | LanguageCode | None) -> LanguageCode:
 
 def normalize_difficulty_level(value: str | None) -> str:
     if value is None:
-        return "AMATEUR"
+        return "PROFESSIONAL"
     normalized = str(value).strip().upper()
-    return normalized or "AMATEUR"
+    return normalized or "PROFESSIONAL"
 
 
 def normalize_regeneration_scope(value: str | RegenerationScope | None) -> str | RegenerationScope:
@@ -63,7 +63,7 @@ class AiGenerationRequestEvent(BaseModel):
     company_id: UUID = Field(alias="companyId")
     prompt: str | None = None
     target_url: str | None = Field(default=None, alias="targetUrl")
-    difficulty_level: str = Field(default="AMATEUR", alias="difficultyLevel")
+    difficulty_level: str = Field(default="PROFESSIONAL", alias="difficultyLevel")
     regeneration_scope: RegenerationScope = Field(default=RegenerationScope.ALL, alias="regenerationScope")
     existing_mongo_template_id: str | None = Field(default=None, alias="existingMongoTemplateId")
     language_code: LanguageCode = Field(
@@ -119,7 +119,7 @@ class ManualGenerateRequest(BaseModel):
     company_id: UUID = Field(alias="companyId")
     prompt: str
     target_url: str | None = Field(default=None, alias="targetUrl")
-    difficulty_level: str = Field(default="AMATEUR", alias="difficultyLevel")
+    difficulty_level: str = Field(default="PROFESSIONAL", alias="difficultyLevel")
     regeneration_scope: RegenerationScope = Field(default=RegenerationScope.ALL, alias="regenerationScope")
     existing_mongo_template_id: str | None = Field(default=None, alias="existingMongoTemplateId")
     language_code: LanguageCode = Field(

@@ -140,6 +140,26 @@ class CampaignServiceImplAdditionalTest {
     }
 
     @Test
+    void createCampaign_WhenAiDefaultsOmitted_ShouldUseProfessionalAndTR() {
+        CreateCampaignRequest request = new CreateCampaignRequest();
+        request.setName("Default Campaign");
+        request.setTargetingType(TargetingType.ALL_COMPANY);
+        request.setIsAiGenerated(true);
+        request.setAiPrompt("prompt");
+        request.setTargetUrl("https://example.com");
+        request.setDifficultyLevel(null);
+        request.setLanguageCode(null);
+
+        when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CampaignResponse response = campaignService.createCampaign(companyId, request);
+
+        assertThat(response.getDifficultyLevel()).isEqualTo(DifficultyLevel.PROFESSIONAL);
+        assertThat(response.getLanguageCode()).isEqualTo(LanguageCode.TR);
+        verify(aiGenerationRequestProducer).sendGenerationRequest(any(Campaign.class));
+    }
+
+    @Test
     void regenerateAiContent_WhenStatusInvalid_ShouldThrow() {
         Campaign campaign = Campaign.builder()
                 .id(campaignId)

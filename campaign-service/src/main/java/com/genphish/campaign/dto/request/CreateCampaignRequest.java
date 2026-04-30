@@ -1,6 +1,7 @@
 package com.genphish.campaign.dto.request;
 
 import com.genphish.campaign.entity.enums.DifficultyLevel;
+import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.TargetingType;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
@@ -34,12 +35,12 @@ public class CreateCampaignRequest {
     // AI mode fields (required when isAiGenerated = true)
     private String aiPrompt; // Scenario description for the LLM
     private String targetUrl; // URL to clone for landing page
-    private String languageCode; // Optional: TR or EN (default TR)
+    private String languageCode = LanguageCode.TR.name(); // Optional: TR or EN (default TR)
     private String aiProvider; // Optional: openai, anthropic, gemini, stub
     private String aiModel; // Optional: provider-specific model override
 
     @NotNull(message = "Difficulty level must be specified")
-    private DifficultyLevel difficultyLevel; // AMATEUR or PROFESSIONAL
+    private DifficultyLevel difficultyLevel = DifficultyLevel.PROFESSIONAL; // AMATEUR or PROFESSIONAL (default PROFESSIONAL)
 
     // Static mode field (required when isAiGenerated = false)
     private UUID staticTemplateId; // Reference to pre-built template

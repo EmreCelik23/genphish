@@ -6,6 +6,7 @@ import com.genphish.campaign.dto.response.CampaignResponse;
 import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.CampaignTarget;
 import com.genphish.campaign.entity.enums.CampaignStatus;
+import com.genphish.campaign.entity.enums.DifficultyLevel;
 import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.TargetingType;
 import com.genphish.campaign.exception.InvalidOperationException;
@@ -210,6 +211,9 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     private Campaign buildCampaignEntity(UUID companyId, CreateCampaignRequest request) {
+        DifficultyLevel difficultyLevel = request.getDifficultyLevel() != null
+                ? request.getDifficultyLevel()
+                : DifficultyLevel.PROFESSIONAL;
         return Campaign.builder()
                 .companyId(companyId)
                 .name(request.getName())
@@ -218,7 +222,7 @@ public class CampaignServiceImpl implements CampaignService {
                 .isAiGenerated(request.getIsAiGenerated())
                 .aiPrompt(request.getAiPrompt())
                 .targetUrl(request.getTargetUrl())
-                .difficultyLevel(request.getDifficultyLevel())
+                .difficultyLevel(difficultyLevel)
                 .aiLanguageCode(normalizeLanguageCode(request.getLanguageCode()))
                 .aiProvider(normalizeProvider(request.getAiProvider()))
                 .aiModel(normalizeOptional(request.getAiModel()))

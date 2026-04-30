@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     google_api_key: str | None = Field(default=None, alias="GOOGLE_API_KEY")
     gemini_model: str = Field(default="gemini-1.5-pro", alias="GEMINI_MODEL")
     gemini_temperature: float = Field(default=0.4, alias="GEMINI_TEMPERATURE")
-    generation_timeout_seconds: float = Field(default=15.0, alias="GENERATION_TIMEOUT_SECONDS")
+    generation_timeout_seconds: float = Field(default=30.0, alias="GENERATION_TIMEOUT_SECONDS")
 
     prompt_dir: Path = Field(default=Path("app/prompts"), alias="PROMPT_DIR")
 
