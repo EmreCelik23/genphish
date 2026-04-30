@@ -1,5 +1,6 @@
 import logging
 
+from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.models.events import (
@@ -32,12 +33,11 @@ async def healthz() -> dict[str, str]:
 
 @router.post(
     "/api/generate",
-    response_model=TemplateCreatedResponse,
     responses={500: {"model": ErrorResponse}},
 )
 async def generate_template(
     payload: ManualGenerateRequest,
-    generation_service: GenerationService = Depends(get_generation_service),
+    generation_service: Annotated[GenerationService, Depends(get_generation_service)],
 ) -> TemplateCreatedResponse:
     request_event = AiGenerationRequestEvent.model_validate(payload.model_dump(by_alias=True))
     try:
@@ -53,7 +53,7 @@ async def generate_template(
         )
 
     return TemplateCreatedResponse(
-        templateId=result.template_id,
+        mongoTemplateId=result.template_id,
         templateId=request_event.template_id,
         status="SUCCESS",
     )
@@ -62,7 +62,7 @@ async def generate_template(
 @router.get("/api/templates/{template_id}")
 async def get_template(
     template_id: str,
-    template_store: TemplateStore = Depends(get_template_store),
+    template_store: Annotated[TemplateStore, Depends(get_template_store)],
 ) -> Response:
     payload = await template_store.get_raw_json_for_campaign_fallback(template_id)
     if payload is None:
@@ -73,16 +73,15 @@ async def get_template(
 
 @router.post(
     "/api/templates/{template_id}/clone",
-    response_model=TemplateCreatedResponse,
     responses={404: {"model": ErrorResponse}},
 )
 async def clone_template(
     template_id: str,
     payload: CloneTemplateRequest,
-    template_store: TemplateStore = Depends(get_template_store),
+    template_store: Annotated[TemplateStore, Depends(get_template_store)],
 ) -> TemplateCreatedResponse:
     cloned_template_id = await template_store.clone(
-        template_id=template_id,
+        mongo_template_id=template_id,
         template_id=payload.template_id,
         company_id=payload.company_id,
     )
@@ -90,7 +89,7 @@ async def clone_template(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
     return TemplateCreatedResponse(
-        templateId=cloned_template_id,
+        mongoTemplateId=cloned_template_id,
         templateId=payload.template_id,
         status="SUCCESS",
     )

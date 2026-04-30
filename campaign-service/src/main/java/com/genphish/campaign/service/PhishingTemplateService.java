@@ -13,4 +13,10 @@ public interface PhishingTemplateService {
     PhishingTemplateResponse getTemplateById(UUID companyId, UUID templateId);
 
     PhishingTemplateResponse generateAiTemplate(UUID companyId, GenerateTemplateRequest request);
+
+    PhishingTemplateResponse updateTemplate(UUID companyId, UUID templateId, com.genphish.campaign.dto.request.UpdateTemplateRequest request);
+
+    PhishingTemplateResponse regenerateAiTemplate(UUID companyId, UUID templateId, com.genphish.campaign.dto.request.RegenerateTemplateRequest request);
+
+    void deleteTemplate(UUID companyId, UUID templateId);
 }

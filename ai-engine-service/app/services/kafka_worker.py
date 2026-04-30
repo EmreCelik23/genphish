@@ -76,12 +76,9 @@ class KafkaWorker:
 
         if self._task:
             self._task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
-            finally:
-                self._task = None
+            self._task = None
 
         if self._consumer:
             await self._consumer.stop()

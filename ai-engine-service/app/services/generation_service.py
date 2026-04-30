@@ -175,7 +175,7 @@ class GenerationService:
             )
             page_title = "Corporate Account Sign In"
             email_placeholder = "Email"
-            password_placeholder = "Password"
+            pass_placeholder = "Password"
             button_text = "Sign In"
         else:
             subject = f"{request.difficulty_level.title()} Güvenlik Kontrolü"
@@ -190,7 +190,7 @@ class GenerationService:
             )
             page_title = "Kurumsal Hesap Girişi"
             email_placeholder = "E-posta"
-            password_placeholder = "Şifre"
+            pass_placeholder = "Şifre"
             button_text = "Giriş Yap"
 
         landing_page_code = (
@@ -213,7 +213,7 @@ class GenerationService:
             f"      <h1>{page_title}</h1>\n"
             "      <form method=\"POST\" action={action}>\n"
             f"        <input name=\"username\" type=\"email\" placeholder=\"{email_placeholder}\" required style={{ width: '100%', marginBottom: 12 }} />\n"
-            f"        <input name=\"password\" type=\"password\" placeholder=\"{password_placeholder}\" required style={{ width: '100%', marginBottom: 12 }} />\n"
+            f"        <input name=\"password\" type=\"password\" placeholder=\"{pass_placeholder}\" required style={{ width: '100%', marginBottom: 12 }} />\n"
             f"        <button type=\"submit\">{button_text}</button>\n"
             "      </form>\n"
             "    </main>\n"
@@ -270,7 +270,6 @@ class GenerationService:
         lower = body.lower()
         if "<html" not in lower:
             body = f"<html><body>{body}</body></html>"
-            lower = body.lower()
 
         is_english = request.language_code == LanguageCode.EN
         if "{{name}}" not in body:

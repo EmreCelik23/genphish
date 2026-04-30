@@ -22,7 +22,7 @@ public class CampaignController {
 
     private final CampaignService campaignService;
 
-    // POST /api/v1/companies/{companyId}/campaigns
+    // Create Campaign
     @PostMapping
     public ResponseEntity<CampaignResponse> createCampaign(
             @PathVariable UUID companyId,
@@ -33,14 +33,14 @@ public class CampaignController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-    // GET /api/v1/companies/{companyId}/campaigns
+    // Get All Campaigns
     @GetMapping
     public ResponseEntity<List<CampaignResponse>> getAllCampaigns(@PathVariable UUID companyId) {
         log.info("Fetching all campaigns for company: {}", companyId);
         return ResponseEntity.ok(campaignService.getAllCampaigns(companyId));
     }
 
-    // GET /api/v1/companies/{companyId}/campaigns/{campaignId}
+    // Get Campaign by ID
     @GetMapping("/{campaignId}")
     public ResponseEntity<CampaignResponse> getCampaignById(
             @PathVariable UUID companyId,
@@ -49,7 +49,7 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.getCampaignById(companyId, campaignId));
     }
 
-    // POST /api/v1/companies/{companyId}/campaigns/{campaignId}/start
+    // Start Campaign
     @PostMapping("/{campaignId}/start")
     public ResponseEntity<CampaignResponse> startCampaign(
             @PathVariable UUID companyId,
@@ -60,7 +60,7 @@ public class CampaignController {
         return ResponseEntity.ok(response);
     }
 
-    // POST /api/v1/companies/{companyId}/campaigns/{campaignId}/schedule
+    // Schedule Campaign
     @PostMapping("/{campaignId}/schedule")
     public ResponseEntity<CampaignResponse> scheduleCampaign(
             @PathVariable UUID companyId,
@@ -72,7 +72,7 @@ public class CampaignController {
         return ResponseEntity.ok(response);
     }
 
-    // POST /api/v1/companies/{companyId}/campaigns/{campaignId}/cancel
+    // Cancel Campaign
     @PostMapping("/{campaignId}/cancel")
     public ResponseEntity<CampaignResponse> cancelCampaign(
             @PathVariable UUID companyId,
@@ -83,7 +83,7 @@ public class CampaignController {
         return ResponseEntity.ok(response);
     }
 
-    // DELETE /api/v1/companies/{companyId}/campaigns/{campaignId}
+    // Delete Campaign
     @DeleteMapping("/{campaignId}")
     public ResponseEntity<Void> deleteCampaign(
             @PathVariable UUID companyId,

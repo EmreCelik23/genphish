@@ -20,6 +20,9 @@ public class KafkaConfig {
     // Go → Java: Tracking events (email opened, link clicked, credentials submitted)
     public static final String TOPIC_TRACKING_EVENTS = "tracking_events";
 
+    // Global: Cancellation events
+    public static final String TOPIC_CAMPAIGN_CANCELED = "campaign_canceled_events";
+
     @Bean
     public NewTopic aiGenerationRequestsTopic() {
         return TopicBuilder.name(TOPIC_AI_GENERATION_REQUESTS)

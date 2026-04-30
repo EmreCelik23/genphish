@@ -37,6 +37,7 @@ public class CampaignServiceImpl implements CampaignService {
     private final EmployeeRepository employeeRepository;
     private final PhishingTemplateRepository phishingTemplateRepository;
     private final EmailDeliveryProducer emailDeliveryProducer;
+    private final org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate;
 
     @org.springframework.beans.factory.annotation.Value("${app.campaign.high-risk-threshold:70.0}")
     private Double highRiskThreshold;
@@ -126,7 +127,20 @@ public class CampaignServiceImpl implements CampaignService {
         campaign.setStatus(CampaignStatus.CANCELED);
         campaignRepository.save(campaign);
 
-        log.info("Campaign canceled (Emergency Stop): {}", campaignId);
+        // Publish event to notify Go-Email-Service to drop any pending emails for this campaign
+        com.genphish.campaign.messaging.event.CampaignCanceledEvent event = com.genphish.campaign.messaging.event.CampaignCanceledEvent.builder()
+                .campaignId(campaignId)
+                .companyId(companyId)
+                .canceledAt(java.time.Instant.now())
+                .build();
+        
+        kafkaTemplate.send(
+                com.genphish.campaign.config.KafkaConfig.TOPIC_CAMPAIGN_CANCELED,
+                campaignId.toString(),
+                event
+        );
+
+        log.info("Campaign canceled (Emergency Stop) and event published: {}", campaignId);
         return mapToResponse(campaign);
     }
 

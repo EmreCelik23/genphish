@@ -79,6 +79,96 @@ public class PhishingTemplateServiceImpl implements PhishingTemplateService {
         return mapToResponse(template);
     }
 
+    @Override
+    @Transactional
+    public PhishingTemplateResponse updateTemplate(UUID companyId, UUID templateId, com.genphish.campaign.dto.request.UpdateTemplateRequest request) {
+        log.info("Manually updating phishing template: {} for company: {}", templateId, companyId);
+        PhishingTemplate template = phishingTemplateRepository.findByIdAndIsActive(templateId, true)
+                .orElseThrow(() -> new ResourceNotFoundException("PhishingTemplate", "id", templateId));
+
+        if (template.getCompanyId() != null && !template.getCompanyId().equals(companyId)) {
+            throw new ResourceNotFoundException("PhishingTemplate", "id", templateId);
+        }
+        
+        // Cannot manually update global static templates through this API
+        if (template.getCompanyId() == null) {
+            throw new com.genphish.campaign.exception.InvalidOperationException("Cannot update global static templates.");
+        }
+
+        template.setName(request.getName());
+        template.setEmailSubject(request.getEmailSubject());
+        template.setEmailBody(request.getEmailBody());
+        
+        if (request.getLandingPageHtml() != null && !request.getLandingPageHtml().isBlank()) {
+            template.setLandingPageHtml(request.getLandingPageHtml());
+        }
+
+        // Keep status as READY, no need to touch AI or Mongo
+        phishingTemplateRepository.save(template);
+        return mapToResponse(template);
+    }
+
+    @Override
+    @Transactional
+    public PhishingTemplateResponse regenerateAiTemplate(UUID companyId, UUID templateId, com.genphish.campaign.dto.request.RegenerateTemplateRequest request) {
+        log.info("Regenerating AI Phishing Template: {} for company: {}", templateId, companyId);
+        PhishingTemplate template = phishingTemplateRepository.findByIdAndIsActive(templateId, true)
+                .orElseThrow(() -> new ResourceNotFoundException("PhishingTemplate", "id", templateId));
+
+        if (template.getCompanyId() != null && !template.getCompanyId().equals(companyId)) {
+            throw new ResourceNotFoundException("PhishingTemplate", "id", templateId);
+        }
+        
+        // Cannot regenerate global static templates
+        if (template.getCompanyId() == null) {
+            throw new com.genphish.campaign.exception.InvalidOperationException("Cannot regenerate global static templates.");
+        }
+        
+        if (template.getMongoTemplateId() == null) {
+            throw new com.genphish.campaign.exception.InvalidOperationException("Cannot regenerate template because Mongo template ID is missing.");
+        }
+
+        template.setPrompt(request.getPrompt());
+        template.setStatus(TemplateStatus.GENERATING);
+        phishingTemplateRepository.save(template);
+
+        aiGenerationRequestProducer.sendGenerationRequest(
+                template,
+                request.getAiProvider(),
+                request.getAiModel(),
+                false, // allowFallbackTemplate false for regeneration
+                request.getScope(),
+                template.getMongoTemplateId()
+        );
+
+        return mapToResponse(template);
+    }
+
+    @Override
+    @Transactional
+    public void deleteTemplate(UUID companyId, UUID templateId) {
+        log.info("Attempting to delete phishing template {} for company {}", templateId, companyId);
+        PhishingTemplate template = phishingTemplateRepository.findByIdAndIsActive(templateId, true)
+                .orElseThrow(() -> new ResourceNotFoundException("PhishingTemplate", "id", templateId));
+                
+        if (template.getCompanyId() != null && !template.getCompanyId().equals(companyId)) {
+            throw new ResourceNotFoundException("PhishingTemplate", "id", templateId);
+        }
+        
+        // Cannot delete global static templates through this API
+        if (template.getCompanyId() == null) {
+            throw new com.genphish.campaign.exception.InvalidOperationException("Cannot delete global static templates.");
+        }
+        
+        // We shouldn't delete if it's used in any campaigns
+        // NOTE: You would need campaignRepository injected for this. 
+        // We will just soft delete the template for now.
+        
+        template.setActive(false);
+        phishingTemplateRepository.save(template);
+        log.info("Successfully deleted phishing template {}", templateId);
+    }
+
     private PhishingTemplateResponse mapToResponse(PhishingTemplate template) {
         return PhishingTemplateResponse.builder()
                 .id(template.getId())

@@ -47,4 +47,34 @@ public class PhishingTemplateController {
         log.info("Fetching phishing template: {} for company: {}", templateId, companyId);
         return ResponseEntity.ok(phishingTemplateService.getTemplateById(companyId, templateId));
     }
+
+    // PUT /api/v1/companies/{companyId}/templates/{templateId}
+    @PutMapping("/{templateId}")
+    public ResponseEntity<PhishingTemplateResponse> updateTemplate(
+            @PathVariable UUID companyId,
+            @PathVariable UUID templateId,
+            @Valid @RequestBody com.genphish.campaign.dto.request.UpdateTemplateRequest request) {
+        log.info("Received request to manually update phishing template: {} for company: {}", templateId, companyId);
+        return ResponseEntity.ok(phishingTemplateService.updateTemplate(companyId, templateId, request));
+    }
+
+    // POST /api/v1/companies/{companyId}/templates/{templateId}/regenerate
+    @PostMapping("/{templateId}/regenerate")
+    public ResponseEntity<PhishingTemplateResponse> regenerateTemplate(
+            @PathVariable UUID companyId,
+            @PathVariable UUID templateId,
+            @Valid @RequestBody com.genphish.campaign.dto.request.RegenerateTemplateRequest request) {
+        log.info("Received request to regenerate phishing template: {} for company: {}", templateId, companyId);
+        return ResponseEntity.ok(phishingTemplateService.regenerateAiTemplate(companyId, templateId, request));
+    }
+
+    // DELETE /api/v1/companies/{companyId}/templates/{templateId}
+    @DeleteMapping("/{templateId}")
+    public ResponseEntity<Void> deleteTemplate(
+            @PathVariable UUID companyId,
+            @PathVariable UUID templateId) {
+        log.info("Received request to delete phishing template: {} for company: {}", templateId, companyId);
+        phishingTemplateService.deleteTemplate(companyId, templateId);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -8,6 +8,7 @@ import com.genphish.campaign.entity.enums.AiGenerationStatus;
 import com.genphish.campaign.entity.enums.TemplateStatus;
 import com.genphish.campaign.messaging.event.AiGenerationResponseEvent;
 import com.genphish.campaign.repository.PhishingTemplateRepository;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -40,9 +41,9 @@ public class AiGenerationResponseConsumer {
                 try {
                     String payload = pythonServiceClient.getTemplateById(event.getMongoTemplateId());
                     AiTemplatePayload aiPayload = objectMapper.readValue(payload, AiTemplatePayload.class);
-                    template.setEmailSubject(aiPayload.subject);
-                    template.setEmailBody(aiPayload.bodyHtml);
-                    template.setLandingPageHtml(aiPayload.landingPageCode);
+                    template.setEmailSubject(aiPayload.getSubject());
+                    template.setEmailBody(aiPayload.getBodyHtml());
+                    template.setLandingPageHtml(aiPayload.getLandingPageCode());
                 } catch (Exception e) {
                     log.error("Failed to fetch template HTML from python service for template: {}", template.getId(), e);
                     template.setStatus(TemplateStatus.FAILED);
@@ -60,10 +61,11 @@ public class AiGenerationResponseConsumer {
         });
     }
 
+    @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class AiTemplatePayload {
-        public String subject;
-        public String bodyHtml;
-        public String landingPageCode;
+    public static class AiTemplatePayload {
+        private String subject;
+        private String bodyHtml;
+        private String landingPageCode;
     }
 }

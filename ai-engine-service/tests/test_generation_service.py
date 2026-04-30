@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -16,6 +17,7 @@ class FakeGenerator:
         self.last_landing_subject = None
 
     async def generate(self, request: AiGenerationRequestEvent) -> GeneratedTemplateParts:
+        await asyncio.sleep(0)
         self.full_calls += 1
         return GeneratedTemplateParts(
             subject="generated-subject",
@@ -32,6 +34,7 @@ class FakeGenerator:
         )
 
     async def generate_email(self, request: AiGenerationRequestEvent) -> GeneratedEmailParts:
+        await asyncio.sleep(0)
         self.email_calls += 1
         return GeneratedEmailParts(
             subject="generated-subject",
@@ -51,6 +54,7 @@ class FakeGenerator:
         request: AiGenerationRequestEvent,
         email_subject: str,
     ) -> GeneratedLandingPageParts:
+        await asyncio.sleep(0)
         self.landing_calls += 1
         self.last_landing_subject = email_subject
         return GeneratedLandingPageParts(
@@ -62,10 +66,12 @@ class FakeGenerator:
 
 class FailingGenerator:
     async def generate(self, request: AiGenerationRequestEvent) -> GeneratedTemplateParts:
+        await asyncio.sleep(0)
         raise RuntimeError("LLM backend unavailable")
 
     async def generate_email(self, request: AiGenerationRequestEvent) -> GeneratedEmailParts:
-        raise RuntimeError("LLM backend unavailable")
+        await asyncio.sleep(0)
+        raise RuntimeError("LLM landing backend unavailable")
 
     async def generate_landing_page(
         self,
@@ -73,11 +79,13 @@ class FailingGenerator:
         email_subject: str,
     ) -> GeneratedLandingPageParts:
         del email_subject
+        await asyncio.sleep(0)
         raise RuntimeError("LLM backend unavailable")
 
 
 class NonCompliantGenerator:
     async def generate(self, request: AiGenerationRequestEvent) -> GeneratedTemplateParts:
+        await asyncio.sleep(0)
         return GeneratedTemplateParts(
             subject="",
             body_html="Security notice only",
@@ -87,6 +95,7 @@ class NonCompliantGenerator:
         )
 
     async def generate_email(self, request: AiGenerationRequestEvent) -> GeneratedEmailParts:
+        await asyncio.sleep(0)
         return GeneratedEmailParts(
             subject="",
             body_html="Security notice only",
@@ -100,6 +109,7 @@ class NonCompliantGenerator:
         email_subject: str,
     ) -> GeneratedLandingPageParts:
         del email_subject
+        await asyncio.sleep(0)
         return GeneratedLandingPageParts(
             landing_page_code="export default function Page() { return null; }",
             provider="stub",
@@ -119,13 +129,16 @@ class FakeTemplateStore:
         self.updated_payload = None
 
     async def get(self, template_id: str) -> StoredTemplateView | None:
+        await asyncio.sleep(0)
         return self._existing if self._existing and self._existing.id == template_id else None
 
     async def create(self, template) -> str:
+        await asyncio.sleep(0)
         self.created_payload = template
         return "new-template-id"
 
     async def update(self, template_id: str, template) -> str:
+        await asyncio.sleep(0)
         self.updated_payload = (template_id, template)
         return template_id
 
@@ -138,6 +151,7 @@ class FakeTemplateStore:
         del difficulty_level
         del language_code
         del prompt
+        await asyncio.sleep(0)
         return self._fallback_parts
 
 
