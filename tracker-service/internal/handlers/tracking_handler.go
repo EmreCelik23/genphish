@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -17,6 +16,7 @@ import (
 	"github.com/EmreCelik23/genphish/tracker-service/internal/config"
 	"github.com/EmreCelik23/genphish/tracker-service/internal/kafka"
 	"github.com/EmreCelik23/genphish/tracker-service/internal/models"
+	"github.com/EmreCelik23/genphish/tracker-service/internal/security"
 )
 
 var transparentPixelGIF = []byte{
@@ -29,6 +29,7 @@ var transparentPixelGIF = []byte{
 
 type TrackingHandler struct {
 	publisher      kafka.EventPublisher
+	verifier       *security.Verifier
 	landingURL     string
 	awarenessURL   string
 	publishTimeout time.Duration
@@ -41,14 +42,31 @@ type trackingIDs struct {
 	companyID  uuid.UUID
 }
 
+type signedTrackingParams struct {
+	exp string
+	sig string
+}
+
 func NewTrackingHandler(
 	publisher kafka.EventPublisher,
+	verifier *security.Verifier,
 	redirects config.RedirectConfig,
 	publishTimeout time.Duration,
 	logger *log.Logger,
 ) *TrackingHandler {
+	if verifier == nil {
+		verifier = security.NewVerifier(
+			false,
+			"",
+			"",
+			10*time.Minute,
+			security.NewInMemoryNonceStore(),
+		)
+	}
+
 	return &TrackingHandler{
 		publisher:      publisher,
+		verifier:       verifier,
 		landingURL:     redirects.LandingPageURL,
 		awarenessURL:   redirects.AwarenessPageURL,
 		publishTimeout: publishTimeout,
@@ -60,6 +78,11 @@ func (h *TrackingHandler) TrackOpen(c *gin.Context) {
 	ids, err := extractTrackingIDs(c)
 	if err != nil {
 		h.logger.Printf("open tracking skipped: %v", err)
+		writeTransparentPixel(c)
+		return
+	}
+	if err := h.verifyTrackingSignature(c, ids); err != nil {
+		h.logger.Printf("open tracking signature verification failed: %v", err)
 		writeTransparentPixel(c)
 		return
 	}
@@ -81,9 +104,14 @@ func (h *TrackingHandler) TrackClick(c *gin.Context) {
 		c.Redirect(http.StatusFound, appendLanguageQuery(redirectBase, languageCode))
 		return
 	}
+	if err := h.verifyTrackingSignature(c, ids); err != nil {
+		h.logger.Printf("click tracking signature verification failed: %v", err)
+		c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
+		return
+	}
 
 	h.publish(c, ids, models.EventLinkClicked)
-	c.Redirect(http.StatusFound, appendTrackingQuery(redirectBase, ids, languageCode))
+	c.Redirect(http.StatusFound, appendTrackingQuery(redirectBase, ids, languageCode, extractSignedTrackingParams(c)))
 }
 
 func (h *TrackingHandler) TrackSubmit(c *gin.Context) {
@@ -95,10 +123,15 @@ func (h *TrackingHandler) TrackSubmit(c *gin.Context) {
 		c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
 		return
 	}
+	if err := h.verifyTrackingSignature(c, ids); err != nil {
+		h.logger.Printf("submit tracking signature verification failed: %v", err)
+		c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
+		return
+	}
 
 	// Intentionally ignores credential fields by design. Only event telemetry is emitted.
 	h.publish(c, ids, models.EventCredentialsSubmitted)
-	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode))
+	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode, extractSignedTrackingParams(c)))
 }
 
 func (h *TrackingHandler) TrackDownload(c *gin.Context) {
@@ -110,29 +143,36 @@ func (h *TrackingHandler) TrackDownload(c *gin.Context) {
 		c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
 		return
 	}
+	if err := h.verifyTrackingSignature(c, ids); err != nil {
+		h.logger.Printf("download tracking signature verification failed: %v", err)
+		c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
+		return
+	}
 
 	h.publish(c, ids, models.EventDownloadTriggered)
-	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode))
+	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode, extractSignedTrackingParams(c)))
 }
 
 func (h *TrackingHandler) TrackOAuthCallback(c *gin.Context) {
 	languageCode := extractLanguageCode(c)
 
-	ids, stateLanguageCode, err := extractTrackingIDsFromOAuthState(c)
-	if err == nil && stateLanguageCode != "" {
-		languageCode = stateLanguageCode
-	}
+	claims, err := h.verifier.ParseAndVerifyOAuthState(c.Request.Context(), c.Query("state"))
 	if err != nil {
-		ids, err = extractTrackingIDs(c)
-		if err != nil {
-			h.logger.Printf("oauth callback tracking skipped: %v", err)
-			c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
-			return
-		}
+		h.logger.Printf("oauth callback tracking skipped: %v", err)
+		c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
+		return
+	}
+	if claims.LanguageCode != "" {
+		languageCode = claims.LanguageCode
 	}
 
+	ids := trackingIDs{
+		campaignID: claims.CampaignID,
+		employeeID: claims.EmployeeID,
+		companyID:  claims.CompanyID,
+	}
 	h.publish(c, ids, models.EventConsentGranted)
-	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode))
+	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode, signedTrackingParams{}))
 }
 
 func (h *TrackingHandler) publish(c *gin.Context, ids trackingIDs, eventType models.TrackingEventType) {
@@ -204,7 +244,7 @@ func writeTransparentPixel(c *gin.Context) {
 	c.Data(http.StatusOK, "image/gif", transparentPixelGIF)
 }
 
-func appendTrackingQuery(base string, ids trackingIDs, languageCode string) string {
+func appendTrackingQuery(base string, ids trackingIDs, languageCode string, signedParams signedTrackingParams) string {
 	withCampaignPath := strings.Replace(base, "{campaignId}", ids.campaignID.String(), 1)
 
 	parsed, err := url.Parse(withCampaignPath)
@@ -220,6 +260,12 @@ func appendTrackingQuery(base string, ids trackingIDs, languageCode string) stri
 	query.Set("co", ids.companyID.String())
 	if languageCode != "" {
 		query.Set("lang", languageCode)
+	}
+	if signedParams.exp != "" {
+		query.Set("exp", signedParams.exp)
+	}
+	if signedParams.sig != "" {
+		query.Set("sig", signedParams.sig)
 	}
 	parsed.RawQuery = query.Encode()
 	return parsed.String()
@@ -277,50 +323,6 @@ func isClickOnlyCategory(value string) bool {
 	return value == "CLICK_ONLY"
 }
 
-func extractTrackingIDsFromOAuthState(c *gin.Context) (trackingIDs, string, error) {
-	rawState := strings.TrimSpace(c.Query("state"))
-	if rawState == "" {
-		return trackingIDs{}, "", errors.New("missing oauth state")
-	}
-
-	decoded, err := base64.RawURLEncoding.DecodeString(rawState)
-	if err != nil {
-		return trackingIDs{}, "", fmt.Errorf("invalid oauth state encoding: %w", err)
-	}
-
-	values, err := url.ParseQuery(string(decoded))
-	if err != nil {
-		return trackingIDs{}, "", fmt.Errorf("invalid oauth state payload: %w", err)
-	}
-
-	campaignRaw := values.Get("c")
-	employeeRaw := values.Get("e")
-	companyRaw := values.Get("co")
-	if campaignRaw == "" || employeeRaw == "" || companyRaw == "" {
-		return trackingIDs{}, "", errors.New("oauth state is missing required identifiers")
-	}
-
-	campaignID, err := uuid.Parse(campaignRaw)
-	if err != nil {
-		return trackingIDs{}, "", fmt.Errorf("invalid campaign id in oauth state: %w", err)
-	}
-	employeeID, err := uuid.Parse(employeeRaw)
-	if err != nil {
-		return trackingIDs{}, "", fmt.Errorf("invalid employee id in oauth state: %w", err)
-	}
-	companyID, err := uuid.Parse(companyRaw)
-	if err != nil {
-		return trackingIDs{}, "", fmt.Errorf("invalid company id in oauth state: %w", err)
-	}
-
-	languageCode := normalizeLanguageCode(values.Get("lang"))
-	return trackingIDs{
-		campaignID: campaignID,
-		employeeID: employeeID,
-		companyID:  companyID,
-	}, languageCode, nil
-}
-
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if value != "" {
@@ -328,4 +330,21 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func extractSignedTrackingParams(c *gin.Context) signedTrackingParams {
+	return signedTrackingParams{
+		exp: strings.TrimSpace(c.Query("exp")),
+		sig: strings.TrimSpace(c.Query("sig")),
+	}
+}
+
+func (h *TrackingHandler) verifyTrackingSignature(c *gin.Context, ids trackingIDs) error {
+	return h.verifier.VerifyTrackingQuery(
+		ids.campaignID,
+		ids.employeeID,
+		ids.companyID,
+		strings.TrimSpace(c.Query("exp")),
+		strings.TrimSpace(c.Query("sig")),
+	)
 }

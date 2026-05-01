@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	redis "github.com/redis/go-redis/v9"
 
 	"github.com/EmreCelik23/genphish/tracker-service/internal/config"
 	"github.com/EmreCelik23/genphish/tracker-service/internal/handlers"
 	"github.com/EmreCelik23/genphish/tracker-service/internal/kafka"
+	"github.com/EmreCelik23/genphish/tracker-service/internal/security"
 )
 
 func main() {
@@ -33,11 +35,44 @@ func main() {
 		}
 	}()
 
+	var nonceStore security.NonceStore = security.NewInMemoryNonceStore()
+	useRedisNonceStore := cfg.Security.NonceStore.RedisEnabled || cfg.Security.NonceStore.Provider == "redis"
+	if useRedisNonceStore {
+		redisClient := redis.NewClient(&redis.Options{
+			Addr:     cfg.Security.NonceStore.RedisAddr,
+			Password: cfg.Security.NonceStore.RedisPassword,
+			DB:       cfg.Security.NonceStore.RedisDB,
+		})
+		if pingErr := redisClient.Ping(context.Background()).Err(); pingErr != nil {
+			logger.Printf("redis nonce-store unavailable, falling back to memory store: %v", pingErr)
+			_ = redisClient.Close()
+		} else {
+			nonceStore = security.NewRedisNonceStore(redisClient, "genphish:oauth:nonce:")
+			logger.Printf("oauth nonce-store provider=redis")
+		}
+	} else {
+		logger.Printf("oauth nonce-store provider=memory")
+	}
+	defer func() {
+		if closeErr := nonceStore.Close(); closeErr != nil {
+			logger.Printf("failed to close nonce store: %v", closeErr)
+		}
+	}()
+
+	verifier := security.NewVerifier(
+		cfg.Security.RequireSignedLinks,
+		cfg.Security.TrackingSignatureSecret,
+		cfg.Security.OAuthStateSecret,
+		cfg.Security.OAuthStateTTL,
+		nonceStore,
+	)
+
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
 
 	trackingHandler := handlers.NewTrackingHandler(
 		publisher,
+		verifier,
 		cfg.Redirects,
 		cfg.Server.PublishTimeout,
 		logger,

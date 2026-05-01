@@ -58,6 +58,19 @@ class ModelsAndUtilsTests(unittest.TestCase):
         self.assertEqual(RoutingContentGenerator._normalize_provider("claude"), "anthropic")
         self.assertEqual(RoutingContentGenerator._normalize_provider("chatgpt"), "openai")
 
+    def test_multimodal_provider_support_matrix(self) -> None:
+        self.assertTrue(RoutingContentGenerator._supports_multimodal("openai"))
+        self.assertTrue(RoutingContentGenerator._supports_multimodal("anthropic"))
+        self.assertTrue(RoutingContentGenerator._supports_multimodal("gemini"))
+        self.assertFalse(RoutingContentGenerator._supports_multimodal("stub"))
+
+    def test_reference_image_content_format_by_provider(self) -> None:
+        openai_payload = RoutingContentGenerator._build_reference_image_content("openai", "https://example.com/a.png")
+        self.assertEqual(openai_payload["type"], "image_url")
+        anthropic_payload = RoutingContentGenerator._build_reference_image_content("anthropic", "https://example.com/a.png")
+        self.assertEqual(anthropic_payload["type"], "image")
+        self.assertEqual(anthropic_payload["source_type"], "url")
+
     def test_template_created_response_includes_mongo_template_id(self) -> None:
         response = TemplateCreatedResponse(
             templateId=uuid4(),

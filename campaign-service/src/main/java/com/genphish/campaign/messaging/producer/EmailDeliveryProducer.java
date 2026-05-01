@@ -18,7 +18,10 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 
@@ -38,6 +41,18 @@ public class EmailDeliveryProducer {
 
     @Value("${app.campaign.high-risk-threshold:70.0}")
     private Double highRiskThreshold;
+
+    @Value("${app.security.tracking-signature-secret:genphish-dev-tracking-secret}")
+    private String trackingSignatureSecret;
+
+    @Value("${app.security.tracking-link-ttl-seconds:604800}")
+    private long trackingLinkTtlSeconds;
+
+    @Value("${app.security.oauth-state-secret:genphish-dev-tracking-secret}")
+    private String oauthStateSecret;
+
+    @Value("${app.security.oauth-state-ttl-seconds:600}")
+    private long oauthStateTtlSeconds;
 
     private static final String BODY_CLOSING_TAG = "</body>";
 
@@ -81,20 +96,35 @@ public class EmailDeliveryProducer {
 
         // 3. Assemble Fat Events and Push to Kafka
         for (Employee emp : targets) {
-            String trackingPixelUrl = String.format(
-                    "%s/track/open?c=%s&e=%s&co=%s&lang=%s",
-                    trackerBaseUrl, campaign.getId(), emp.getId(), campaign.getCompanyId(), languageCode
+            long trackingExpEpochSeconds = Instant.now().getEpochSecond() + Math.max(trackingLinkTtlSeconds, 60L);
+            String trackingSignature = buildTrackingSignature(
+                    campaign.getId(),
+                    emp.getId(),
+                    campaign.getCompanyId(),
+                    trackingExpEpochSeconds
+            );
+
+            String trackingPixelUrl = buildTrackingUrl(
+                    "/track/open",
+                    campaign.getId(),
+                    emp.getId(),
+                    campaign.getCompanyId(),
+                    languageCode,
+                    templateCategory.name(),
+                    trackingExpEpochSeconds,
+                    trackingSignature
             );
             String phishingLinkUrl = templateCategory == TemplateCategory.OAUTH_CONSENT
                     ? buildOAuthConsentLink(template.getTargetUrl(), campaign.getId(), emp.getId(), campaign.getCompanyId(), languageCode)
-                    : String.format(
-                        "%s/track/click?c=%s&e=%s&co=%s&lang=%s&tc=%s",
-                        trackerBaseUrl,
-                        campaign.getId(),
-                        emp.getId(),
-                        campaign.getCompanyId(),
-                        languageCode,
-                        templateCategory.name()
+                    : buildTrackingUrl(
+                            "/track/click",
+                            campaign.getId(),
+                            emp.getId(),
+                            campaign.getCompanyId(),
+                            languageCode,
+                            templateCategory.name(),
+                            trackingExpEpochSeconds,
+                            trackingSignature
                     );
 
             // Prepare the HTML content by replacing tags like {{name}} or {{department}}.
@@ -181,9 +211,79 @@ public class EmailDeliveryProducer {
             java.util.UUID companyId,
             String languageCode
     ) {
-        String payload = String.format("c=%s&e=%s&co=%s&lang=%s", campaignId, employeeId, companyId, languageCode);
-        return Base64.getUrlEncoder()
+        long expEpochSeconds = Instant.now().getEpochSecond() + Math.max(oauthStateTtlSeconds, 60L);
+        String nonce = java.util.UUID.randomUUID().toString().replace("-", "");
+        String normalizedLanguageCode = normalizeLanguageCode(languageCode);
+        String payload = String.format(
+                "c=%s&e=%s&co=%s&lang=%s&exp=%d&nonce=%s",
+                campaignId,
+                employeeId,
+                companyId,
+                normalizedLanguageCode,
+                expEpochSeconds,
+                nonce
+        );
+        String encodedPayload = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
+        String signature = signHmacSha256(oauthStateSecret, payload);
+        return encodedPayload + "." + signature;
+    }
+
+    private String buildTrackingUrl(
+            String path,
+            java.util.UUID campaignId,
+            java.util.UUID employeeId,
+            java.util.UUID companyId,
+            String languageCode,
+            String templateCategory,
+            long expEpochSeconds,
+            String signature
+    ) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(trackerBaseUrl)
+                .path(path)
+                .queryParam("c", campaignId)
+                .queryParam("e", employeeId)
+                .queryParam("co", companyId)
+                .queryParam("lang", normalizeLanguageCode(languageCode))
+                .queryParam("exp", expEpochSeconds)
+                .queryParam("sig", signature);
+
+        if (templateCategory != null && !templateCategory.isBlank()) {
+            builder.queryParam("tc", templateCategory);
+        }
+
+        return builder.build(true).toUriString();
+    }
+
+    private String buildTrackingSignature(
+            java.util.UUID campaignId,
+            java.util.UUID employeeId,
+            java.util.UUID companyId,
+            long expEpochSeconds
+    ) {
+        String payload = String.format("c=%s&e=%s&co=%s&exp=%d", campaignId, employeeId, companyId, expEpochSeconds);
+        return signHmacSha256(trackingSignatureSecret, payload);
+    }
+
+    private String signHmacSha256(String secret, String payload) {
+        try {
+            String normalizedSecret = secret == null || secret.isBlank() ? "genphish-dev-tracking-secret" : secret;
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(normalizedSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] signatureBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(signatureBytes);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to sign security payload.", e);
+        }
+    }
+
+    private String normalizeLanguageCode(String languageCode) {
+        if (languageCode == null) {
+            return LanguageCode.TR.name();
+        }
+
+        String normalized = languageCode.trim().toUpperCase();
+        return normalized.startsWith("EN") ? LanguageCode.EN.name() : LanguageCode.TR.name();
     }
 }

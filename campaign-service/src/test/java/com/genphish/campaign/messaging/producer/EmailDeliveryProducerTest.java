@@ -101,6 +101,8 @@ class EmailDeliveryProducerTest {
         assertEquals("Urgent Security Update", sentEvent.getEmailSubject());
         assertTrue(sentEvent.getEmailBodyHtml().contains("Hello John"));
         assertTrue(sentEvent.getEmailBodyHtml().contains("http://localhost:8081/track/click"));
+        assertTrue(sentEvent.getEmailBodyHtml().contains("exp="));
+        assertTrue(sentEvent.getEmailBodyHtml().contains("sig="));
         assertTrue(sentEvent.getEmailBodyHtml().contains("<img src=\"http://localhost:8081/track/open"));
     }
 
@@ -151,5 +153,6 @@ class EmailDeliveryProducerTest {
         EmailDeliveryEvent sentEvent = eventCaptor.getValue();
         assertTrue(sentEvent.getEmailBodyHtml().contains("https://login.microsoftonline.com"));
         assertTrue(sentEvent.getEmailBodyHtml().contains("state="));
+        assertTrue(sentEvent.getEmailBodyHtml().contains("."));
     }
 }

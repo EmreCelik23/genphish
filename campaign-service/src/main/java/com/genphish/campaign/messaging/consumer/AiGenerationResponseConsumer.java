@@ -39,7 +39,7 @@ public class AiGenerationResponseConsumer {
                 template.setStatus(TemplateStatus.READY);
 
                 try {
-                    String payload = pythonServiceClient.getTemplateById(event.getMongoTemplateId());
+                    String payload = pythonServiceClient.getTemplateById(event.getMongoTemplateId(), template.getCompanyId());
                     AiTemplatePayload aiPayload = objectMapper.readValue(payload, AiTemplatePayload.class);
                     template.setEmailSubject(aiPayload.getSubject());
                     template.setEmailBody(aiPayload.getBodyHtml());

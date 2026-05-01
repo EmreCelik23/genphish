@@ -13,6 +13,7 @@ type Config struct {
 	Server    ServerConfig
 	Kafka     KafkaConfig
 	Redirects RedirectConfig
+	Security  SecurityConfig
 }
 
 type ServerConfig struct {
@@ -35,6 +36,22 @@ type KafkaConfig struct {
 type RedirectConfig struct {
 	LandingPageURL   string
 	AwarenessPageURL string
+}
+
+type SecurityConfig struct {
+	RequireSignedLinks      bool
+	TrackingSignatureSecret string
+	OAuthStateSecret        string
+	OAuthStateTTL           time.Duration
+	NonceStore              NonceStoreConfig
+}
+
+type NonceStoreConfig struct {
+	Provider      string
+	RedisEnabled  bool
+	RedisAddr     string
+	RedisPassword string
+	RedisDB       int
 }
 
 func (c ServerConfig) Address() string {
@@ -72,6 +89,19 @@ func Load() Config {
 		Redirects: RedirectConfig{
 			LandingPageURL:   getEnv("LANDING_PAGE_URL", "http://localhost:3000/phishing"),
 			AwarenessPageURL: getEnv("AWARENESS_PAGE_URL", "http://localhost:3000/awareness"),
+		},
+		Security: SecurityConfig{
+			RequireSignedLinks:      getEnvAsBool("REQUIRE_SIGNED_LINKS", true),
+			TrackingSignatureSecret: getEnv("TRACKING_SIGNATURE_SECRET", "genphish-dev-tracking-secret"),
+			OAuthStateSecret:        getEnv("OAUTH_STATE_HMAC_SECRET", getEnv("TRACKING_SIGNATURE_SECRET", "genphish-dev-tracking-secret")),
+			OAuthStateTTL:           time.Duration(getEnvAsInt("OAUTH_STATE_TTL_SECONDS", 600)) * time.Second,
+			NonceStore: NonceStoreConfig{
+				Provider:      strings.ToLower(getEnv("NONCE_STORE_PROVIDER", "memory")),
+				RedisEnabled:  getEnvAsBool("REDIS_ENABLED", false),
+				RedisAddr:     getEnv("REDIS_ADDR", "localhost:6379"),
+				RedisPassword: getEnv("REDIS_PASSWORD", ""),
+				RedisDB:       getEnvAsInt("REDIS_DB", 0),
+			},
 		},
 	}
 }

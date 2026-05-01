@@ -20,6 +20,8 @@ This service is intentionally narrow and optimized for those goals.
 - Credential-submit event tracking (`CREDENTIALS_SUBMITTED`)
 - Download-trigger simulation tracking (`DOWNLOAD_TRIGGERED`)
 - OAuth consent callback tracking (`CONSENT_GRANTED`)
+- Signed-link verification (`exp` + `sig`) for tracking endpoints
+- Signed OAuth `state` verification (HMAC + exp + nonce) with anti-replay nonce store
 - Kafka event publishing with low-latency batching
 - Health endpoint for orchestration probes
 - Graceful shutdown with timeout-based draining
@@ -52,14 +54,19 @@ Accepted aliases:
 - Company id: `co`, `company_id`, `companyId`
 - Language (`TR` default): `lang`, `language`, `languageCode`
 - Template category hint: `tc`, `templateCategory`, `category`
+- Signed-link validation fields: `exp`, `sig`
 
 Flow-specific notes:
 
 - `tc=CLICK_ONLY` on `/track/click` redirects directly to awareness flow after click telemetry.
-- `/oauth/callback` supports encoded OAuth `state` payload (`c,e,co,lang`) and falls back to query ids when needed.
+- `/oauth/callback` expects signed OAuth `state` payload:
+  - payload contains `c,e,co,lang,exp,nonce`
+  - state format is `base64(payload).hmac`
+  - nonce replay is blocked via configured nonce store.
 
 If ids are missing or invalid, the service still returns safe fallback responses (pixel or redirect) and avoids crashing request flow.
 Redirect URLs always include normalized `lang=TR|EN` (`TR` is default if omitted/unknown).
+If signature/state verification fails, the request is safely redirected/pixel-served but telemetry event is not published.
 
 ## Event contract
 
@@ -101,6 +108,13 @@ Key variables:
 | `KAFKA_ASYNC` | Async Kafka write mode | `true` |
 | `LANDING_PAGE_URL` | Redirect target for click endpoint (`{campaignId}` placeholder supported) | `http://localhost:3000/phishing` |
 | `AWARENESS_PAGE_URL` | Redirect target for submit endpoint | `http://localhost:3000/awareness` |
+| `REQUIRE_SIGNED_LINKS` | Require `exp` + `sig` on tracking links | `true` |
+| `TRACKING_SIGNATURE_SECRET` | HMAC secret for tracking link verification | `genphish-dev-tracking-secret` |
+| `OAUTH_STATE_HMAC_SECRET` | HMAC secret for OAuth state verification | `genphish-dev-tracking-secret` |
+| `OAUTH_STATE_TTL_SECONDS` | Max OAuth state validity window | `600` |
+| `NONCE_STORE_PROVIDER` | `memory` or `redis` | `memory` |
+| `REDIS_ENABLED` | Enable Redis-backed nonce replay store | `false` |
+| `REDIS_ADDR` / `REDIS_PASSWORD` / `REDIS_DB` | Redis connection settings | `localhost:6379` / empty / `0` |
 
 Example dynamic route config:
 
@@ -164,6 +178,6 @@ curl -s http://localhost:8081/healthz
 ## Position in GenPhish
 
 1. Email links/pixels hit tracker endpoints
-2. Service validates ids and emits event to Kafka
+2. Service validates signed ids/state and emits event to Kafka
 3. `campaign-service` consumes `tracking_events`
 4. Risk scores and campaign analytics are updated

@@ -59,7 +59,7 @@ class AiGenerationResponseConsumerTest {
         String fakeHtml = "{\"subject\":\"Hi\", \"bodyHtml\":\"<html>Body</html>\", \"landingPageCode\":\"<html>Landing</html>\"}";
 
         when(phishingTemplateRepository.findById(templateId)).thenReturn(Optional.of(template));
-        when(pythonServiceClient.getTemplateById("mongo_789")).thenReturn(fakeHtml);
+        when(pythonServiceClient.getTemplateById(eq("mongo_789"), isNull())).thenReturn(fakeHtml);
 
         consumer.consume(event);
 
@@ -98,7 +98,7 @@ class AiGenerationResponseConsumerTest {
                 .build();
 
         when(phishingTemplateRepository.findById(templateId)).thenReturn(Optional.of(template));
-        when(pythonServiceClient.getTemplateById("mongo_789")).thenReturn(null);
+        when(pythonServiceClient.getTemplateById(eq("mongo_789"), isNull())).thenReturn(null);
 
         consumer.consume(event);
 

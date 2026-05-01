@@ -44,6 +44,15 @@ func TestLoadDefaults(t *testing.T) {
 		"KAFKA_ASYNC",
 		"LANDING_PAGE_URL",
 		"AWARENESS_PAGE_URL",
+		"REQUIRE_SIGNED_LINKS",
+		"TRACKING_SIGNATURE_SECRET",
+		"OAUTH_STATE_HMAC_SECRET",
+		"OAUTH_STATE_TTL_SECONDS",
+		"NONCE_STORE_PROVIDER",
+		"REDIS_ENABLED",
+		"REDIS_ADDR",
+		"REDIS_PASSWORD",
+		"REDIS_DB",
 	} {
 		t.Setenv(key, "")
 	}
@@ -89,6 +98,27 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Redirects.AwarenessPageURL != "http://localhost:3000/awareness" {
 		t.Fatalf("default awareness url mismatch: got %q", cfg.Redirects.AwarenessPageURL)
 	}
+	if !cfg.Security.RequireSignedLinks {
+		t.Fatalf("expected signed links to be required by default")
+	}
+	if cfg.Security.TrackingSignatureSecret != "genphish-dev-tracking-secret" {
+		t.Fatalf("default tracking secret mismatch: got %q", cfg.Security.TrackingSignatureSecret)
+	}
+	if cfg.Security.OAuthStateSecret != "genphish-dev-tracking-secret" {
+		t.Fatalf("default oauth secret mismatch: got %q", cfg.Security.OAuthStateSecret)
+	}
+	if cfg.Security.OAuthStateTTL != 600*time.Second {
+		t.Fatalf("default oauth state ttl mismatch: got %v", cfg.Security.OAuthStateTTL)
+	}
+	if cfg.Security.NonceStore.Provider != "memory" {
+		t.Fatalf("default nonce provider mismatch: got %q", cfg.Security.NonceStore.Provider)
+	}
+	if cfg.Security.NonceStore.RedisEnabled {
+		t.Fatalf("default redis enabled mismatch: expected false")
+	}
+	if cfg.Security.NonceStore.RedisAddr != "localhost:6379" {
+		t.Fatalf("default redis addr mismatch: got %q", cfg.Security.NonceStore.RedisAddr)
+	}
 }
 
 func TestLoadCustomValues(t *testing.T) {
@@ -104,6 +134,15 @@ func TestLoadCustomValues(t *testing.T) {
 	t.Setenv("KAFKA_ASYNC", "no")
 	t.Setenv("LANDING_PAGE_URL", "https://app.example.com/phishing/{campaignId}")
 	t.Setenv("AWARENESS_PAGE_URL", "https://app.example.com/awareness")
+	t.Setenv("REQUIRE_SIGNED_LINKS", "false")
+	t.Setenv("TRACKING_SIGNATURE_SECRET", "custom-tracking-secret")
+	t.Setenv("OAUTH_STATE_HMAC_SECRET", "custom-oauth-secret")
+	t.Setenv("OAUTH_STATE_TTL_SECONDS", "900")
+	t.Setenv("NONCE_STORE_PROVIDER", "redis")
+	t.Setenv("REDIS_ENABLED", "true")
+	t.Setenv("REDIS_ADDR", "redis.internal:6380")
+	t.Setenv("REDIS_PASSWORD", "secret")
+	t.Setenv("REDIS_DB", "3")
 
 	cfg := Load()
 
@@ -142,6 +181,33 @@ func TestLoadCustomValues(t *testing.T) {
 	}
 	if cfg.Redirects.AwarenessPageURL != "https://app.example.com/awareness" {
 		t.Fatalf("custom awareness url mismatch: got %q", cfg.Redirects.AwarenessPageURL)
+	}
+	if cfg.Security.RequireSignedLinks {
+		t.Fatalf("custom signed links mismatch: expected false")
+	}
+	if cfg.Security.TrackingSignatureSecret != "custom-tracking-secret" {
+		t.Fatalf("custom tracking secret mismatch: got %q", cfg.Security.TrackingSignatureSecret)
+	}
+	if cfg.Security.OAuthStateSecret != "custom-oauth-secret" {
+		t.Fatalf("custom oauth secret mismatch: got %q", cfg.Security.OAuthStateSecret)
+	}
+	if cfg.Security.OAuthStateTTL != 900*time.Second {
+		t.Fatalf("custom oauth state ttl mismatch: got %v", cfg.Security.OAuthStateTTL)
+	}
+	if cfg.Security.NonceStore.Provider != "redis" {
+		t.Fatalf("custom nonce provider mismatch: got %q", cfg.Security.NonceStore.Provider)
+	}
+	if !cfg.Security.NonceStore.RedisEnabled {
+		t.Fatalf("custom redis enabled mismatch: expected true")
+	}
+	if cfg.Security.NonceStore.RedisAddr != "redis.internal:6380" {
+		t.Fatalf("custom redis addr mismatch: got %q", cfg.Security.NonceStore.RedisAddr)
+	}
+	if cfg.Security.NonceStore.RedisPassword != "secret" {
+		t.Fatalf("custom redis password mismatch: got %q", cfg.Security.NonceStore.RedisPassword)
+	}
+	if cfg.Security.NonceStore.RedisDB != 3 {
+		t.Fatalf("custom redis db mismatch: got %d", cfg.Security.NonceStore.RedisDB)
 	}
 }
 

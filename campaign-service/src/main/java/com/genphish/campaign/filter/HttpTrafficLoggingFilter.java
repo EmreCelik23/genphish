@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 1) // 2nd in the filter chain, right after MDC
+@Order(Ordered.HIGHEST_PRECEDENCE + 2) // 3rd in the filter chain, after MDC and auth filters
 @Slf4j
 public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
 

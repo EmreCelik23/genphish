@@ -28,7 +28,7 @@ class FakeGenerator:
                 "<p><a href=\"{{phishing_link}}\">Open</a></p>"
                 "</body></html>"
             ),
-            landing_page_code="const action='/track/submit?c=1&e=2&co=3';",
+            landing_page_code="const action='/track/submit?c=1&e=2&co=3&exp=4&sig=abc';",
             provider="stub",
             model="stub-model",
         )
@@ -58,7 +58,7 @@ class FakeGenerator:
         self.landing_calls += 1
         self.last_landing_subject = email_subject
         return GeneratedLandingPageParts(
-            landing_page_code="const action='/track/submit?c=1&e=2&co=3';",
+            landing_page_code="const action='/track/submit?c=1&e=2&co=3&exp=4&sig=abc';",
             provider="stub",
             model="stub-model",
         )
@@ -252,7 +252,7 @@ class GenerationServiceTests(unittest.IsolatedAsyncioTestCase):
         _, updated_template = store.updated_payload
         self.assertEqual(updated_template.subject, "existing-subject")
         self.assertEqual(updated_template.body_html, "<p>existing-body</p>")
-        self.assertEqual(updated_template.landing_page_code, "const action='/track/submit?c=1&e=2&co=3';")
+        self.assertEqual(updated_template.landing_page_code, "const action='/track/submit?c=1&e=2&co=3&exp=4&sig=abc';")
         self.assertEqual(generator.full_calls, 0)
         self.assertEqual(generator.email_calls, 0)
         self.assertEqual(generator.landing_calls, 1)

@@ -10,7 +10,7 @@ Generate a Next.js App Router page code snippet for this scenario:
 
 Requirements:
 - Build UI style matching the scenario context.
-- Read c,e,co from current URL and submit to {landing_action_endpoint}?c=...&e=...&co=...
+- Read c,e,co,exp,sig from current URL and submit to {landing_action_endpoint}?c=...&e=...&co=...&exp=...&sig=...
 - If c is not in query, extract it from the last dynamic path segment.
 - Preserve lang query if present.
 - For CREDENTIAL_HARVESTING category include a convincing login form with email/username and password fields.

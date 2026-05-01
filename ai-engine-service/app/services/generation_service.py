@@ -229,7 +229,9 @@ class GenerationService:
                 "  const e = qp.get('e') || '';\n"
                 "  const co = qp.get('co') || '';\n"
                 "  const lang = qp.get('lang') || '';\n"
-                "  const action = `/track/download?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}`;\n"
+                "  const exp = qp.get('exp') || '';\n"
+                "  const sig = qp.get('sig') || '';\n"
+                "  const action = `/track/download?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}${exp ? `&exp=${encodeURIComponent(exp)}` : ''}${sig ? `&sig=${encodeURIComponent(sig)}` : ''}`;\n"
                 "\n"
                 "  return (\n"
                 "    <main style={{ maxWidth: 520, margin: '56px auto', fontFamily: 'system-ui' }}>\n"
@@ -311,7 +313,9 @@ class GenerationService:
                 "  const e = qp.get('e') || '';\n"
                 "  const co = qp.get('co') || '';\n"
                 "  const lang = qp.get('lang') || '';\n"
-                "  const action = `/track/submit?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}`;\n"
+                "  const exp = qp.get('exp') || '';\n"
+                "  const sig = qp.get('sig') || '';\n"
+                "  const action = `/track/submit?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}${exp ? `&exp=${encodeURIComponent(exp)}` : ''}${sig ? `&sig=${encodeURIComponent(sig)}` : ''}`;\n"
                 "\n"
                 "  return (\n"
                 "    <main style={{ maxWidth: 420, margin: '48px auto', fontFamily: 'system-ui' }}>\n"
@@ -410,7 +414,7 @@ class GenerationService:
             return fallback_landing_page_code
 
         required_endpoint = "/track/download" if category == TemplateCategory.MALWARE_DELIVERY else "/track/submit"
-        required_tokens = (required_endpoint, "c=", "e=", "co=")
+        required_tokens = (required_endpoint, "c=", "e=", "co=", "exp=", "sig=")
         if any(token not in landing for token in required_tokens):
             return fallback_landing_page_code
         return landing

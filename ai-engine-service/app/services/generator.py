@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -76,6 +77,7 @@ class RoutingContentGenerator:
         self._default_provider = self._normalize_provider(settings.ai_provider)
         self._model_cache: dict[tuple[str, str], Any] = {}
         self._stub_generator = StubContentGenerator()
+        self._logger = logging.getLogger(self.__class__.__name__)
 
         self._email_system_prompt = prompt_loader.load("email_system.txt")
         self._email_user_prompt = prompt_loader.load("email_user.txt")
@@ -177,11 +179,24 @@ class RoutingContentGenerator:
         email_subject: str,
         provider: str,
     ) -> LandingGenerationOutput:
-        if request.reference_image_url and provider == "openai":
-            return await self._generate_landing_with_reference_image(
-                chat_model=chat_model,
-                request=request,
-                email_subject=email_subject,
+        if request.reference_image_url and self._supports_multimodal(provider):
+            try:
+                return await self._generate_landing_with_reference_image(
+                    chat_model=chat_model,
+                    request=request,
+                    email_subject=email_subject,
+                    provider=provider,
+                )
+            except Exception:
+                self._logger.warning(
+                    "Multimodal landing generation failed for provider=%s, falling back to text-only prompt.",
+                    provider,
+                    exc_info=True,
+                )
+        elif request.reference_image_url:
+            self._logger.warning(
+                "Provider=%s does not support multimodal reference-image generation; using text-only prompt.",
+                provider,
             )
 
         landing_chain = ChatPromptTemplate.from_messages(
@@ -212,6 +227,7 @@ class RoutingContentGenerator:
         chat_model: Any,
         request: AiGenerationRequestEvent,
         email_subject: str,
+        provider: str,
     ) -> LandingGenerationOutput:
         structured_model = chat_model.with_structured_output(LandingGenerationOutput)
 
@@ -240,7 +256,7 @@ class RoutingContentGenerator:
             HumanMessage(
                 content=[
                     {"type": "text", "text": user_prompt},
-                    {"type": "image_url", "image_url": {"url": request.reference_image_url}},
+                    self._build_reference_image_content(provider, request.reference_image_url),
                 ]
             ),
         ]
@@ -332,6 +348,23 @@ class RoutingContentGenerator:
             return "/track/download"
         return "/track/submit"
 
+    @staticmethod
+    def _supports_multimodal(provider: str) -> bool:
+        return provider in {"openai", "anthropic", "gemini"}
+
+    @staticmethod
+    def _build_reference_image_content(provider: str, image_url: str) -> dict[str, Any]:
+        if provider == "anthropic":
+            return {
+                "type": "image",
+                "source_type": "url",
+                "url": image_url,
+            }
+        return {
+            "type": "image_url",
+            "image_url": {"url": image_url},
+        }
+
 
 class StubContentGenerator:
     def __init__(self) -> None:
@@ -416,7 +449,9 @@ class StubContentGenerator:
                 "  const e = query.get('e') || '';\n"
                 "  const co = query.get('co') || '';\n"
                 "  const lang = query.get('lang') || '';\n"
-                "  const action = `/track/download?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}`;\n"
+                "  const exp = query.get('exp') || '';\n"
+                "  const sig = query.get('sig') || '';\n"
+                "  const action = `/track/download?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}${exp ? `&exp=${encodeURIComponent(exp)}` : ''}${sig ? `&sig=${encodeURIComponent(sig)}` : ''}`;\n"
                 "\n"
                 "  return (\n"
                 "    <main style={{ maxWidth: 460, margin: '64px auto', fontFamily: 'system-ui' }}>\n"
@@ -460,7 +495,9 @@ class StubContentGenerator:
             "  const e = query.get('e') || '';\n"
             "  const co = query.get('co') || '';\n"
             "  const lang = query.get('lang') || '';\n"
-            "  const action = `/track/submit?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}`;\n"
+            "  const exp = query.get('exp') || '';\n"
+            "  const sig = query.get('sig') || '';\n"
+            "  const action = `/track/submit?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}${exp ? `&exp=${encodeURIComponent(exp)}` : ''}${sig ? `&sig=${encodeURIComponent(sig)}` : ''}`;\n"
             "\n"
             "  return (\n"
             "    <main style={{ maxWidth: 420, margin: '64px auto', fontFamily: 'system-ui' }}>\n"

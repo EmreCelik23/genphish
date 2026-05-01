@@ -16,7 +16,8 @@ It consumes campaign generation jobs from Kafka, produces phishing simulation as
   - `MALWARE_DELIVERY`: download CTA -> `/track/download`
   - `CLICK_ONLY`: no landing page required
   - `OAUTH_CONSENT`: no landing page required
-- Supports optional multimodal generation with `referenceImageUrl` (OpenAI provider path)
+- Supports optional multimodal generation with `referenceImageUrl` for `openai`, `anthropic`, and `gemini`
+- If multimodal execution fails at runtime, service logs warning and safely falls back to text-only landing generation
 - Exposes API fallback for campaign service cache misses:
   - `GET /api/templates/{template_id}`
   - `POST /api/templates/{template_id}/clone` (creates independent copy for campaign cloning)
@@ -27,6 +28,7 @@ It consumes campaign generation jobs from Kafka, produces phishing simulation as
 - Landing code compatibility:
   - supports both query-style ids (`?c=...`) and dynamic path ids (`/phishing/{campaignId}`)
   - preserves optional `lang` query (`TR|EN`) on submit redirect flow
+  - preserves signed tracking params `exp` and `sig` on action posts
 
 ## Integration contract with campaign-service
 
@@ -138,8 +140,13 @@ python -m pip install -r requirements.txt
    - OpenAI: `OPENAI_API_KEY`
    - Anthropic: `ANTHROPIC_API_KEY`
    - Gemini: `GOOGLE_API_KEY`
+7. Configure service auth shared secret with campaign-service:
+   - `SERVICE_AUTH_ENABLED=true`
+   - `SERVICE_AUTH_TOKEN=...`
+   - `SERVICE_TOKEN_HEADER=X-Service-Token`
+   - `COMPANY_HEADER=X-Company-Id`
 
-7. Start service:
+8. Start service:
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload
@@ -158,6 +165,11 @@ docker run --rm -p 5000:5000 --env-file .env genphish-ai-engine:prod
 - `POST /api/generate` (manual generation trigger)
 - `GET /api/templates/{template_id}` (campaign fallback endpoint)
 - `POST /api/templates/{template_id}/clone` (duplicate existing template for a new campaign)
+
+Auth for `/api/*` endpoints:
+
+- `Authorization: Bearer <SERVICE_AUTH_TOKEN>` or `X-Service-Token: <SERVICE_AUTH_TOKEN>`
+- For company-scoped payloads (`/api/generate`, `/api/templates/{template_id}/clone`), `X-Company-Id` must match payload `companyId`
 
 `POST /api/generate` success response shape:
 
@@ -206,5 +218,6 @@ Request-level overrides are also supported with `provider` and `model` fields.
 - Set `KAFKA_ENABLED=false` for local API-only development without Kafka.
 - Generation timeout is controlled by `GENERATION_TIMEOUT_SECONDS` (default `15`).
 - Strict behavior is default: timeout/error -> `FAILED`. Enable fallback per request with `allowFallbackTemplate=true`.
-- Multimodal image-to-code flow uses `referenceImageUrl`; non-OpenAI providers currently continue with text-first flow.
+- Multimodal image-to-code flow uses `referenceImageUrl` for OpenAI/Anthropic/Gemini providers.
+- Keep `SERVICE_AUTH_TOKEN` aligned with campaign-service `AI_SERVICE_TOKEN`.
 - For production, configure network-level authentication for Kafka and MongoDB.

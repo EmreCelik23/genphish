@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +20,7 @@ import (
 
 	"github.com/EmreCelik23/genphish/tracker-service/internal/config"
 	"github.com/EmreCelik23/genphish/tracker-service/internal/models"
+	"github.com/EmreCelik23/genphish/tracker-service/internal/security"
 )
 
 type mockEventPublisher struct {
@@ -24,6 +28,11 @@ type mockEventPublisher struct {
 	publishErr   error
 	publishCalls int
 }
+
+const (
+	testTrackingSecret = "test-tracking-secret"
+	testOAuthSecret    = "test-oauth-secret"
+)
 
 func (m *mockEventPublisher) PublishTrackingEvent(_ context.Context, event models.TrackingEvent) error {
 	m.publishCalls++
@@ -50,8 +59,16 @@ func newTestRouterWithRedirects(
 ) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	verifier := security.NewVerifier(
+		true,
+		testTrackingSecret,
+		testOAuthSecret,
+		10*time.Minute,
+		security.NewInMemoryNonceStore(),
+	)
 	handler := NewTrackingHandler(
 		publisher,
+		verifier,
 		config.RedirectConfig{
 			LandingPageURL:   landingURL,
 			AwarenessPageURL: awarenessURL,
@@ -63,6 +80,35 @@ func newTestRouterWithRedirects(
 	return router
 }
 
+func buildSignedTrackingQuery(campaignID, employeeID, companyID uuid.UUID) string {
+	exp := time.Now().UTC().Add(10 * time.Minute).Unix()
+	payload := fmt.Sprintf("c=%s&e=%s&co=%s&exp=%d", campaignID, employeeID, companyID, exp)
+	signature := signForTest(testTrackingSecret, payload)
+	return fmt.Sprintf("&exp=%d&sig=%s", exp, signature)
+}
+
+func buildSignedOAuthState(campaignID, employeeID, companyID uuid.UUID, languageCode string, nonce string) string {
+	exp := time.Now().UTC().Add(10 * time.Minute).Unix()
+	payload := fmt.Sprintf(
+		"c=%s&e=%s&co=%s&lang=%s&exp=%d&nonce=%s",
+		campaignID,
+		employeeID,
+		companyID,
+		languageCode,
+		exp,
+		nonce,
+	)
+	encodedPayload := base64.RawURLEncoding.EncodeToString([]byte(payload))
+	signature := signForTest(testOAuthSecret, payload)
+	return encodedPayload + "." + signature
+}
+
+func signForTest(secret string, payload string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
 func TestTrackOpenPublishesEmailOpenedAndReturnsPixel(t *testing.T) {
 	publisher := &mockEventPublisher{}
 	router := newTestRouter(publisher)
@@ -72,7 +118,8 @@ func TestTrackOpenPublishesEmailOpenedAndReturnsPixel(t *testing.T) {
 	companyID := uuid.New()
 
 	req := httptest.NewRequest(http.MethodGet,
-		"/track/open?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String(), nil)
+		"/track/open?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+
+			buildSignedTrackingQuery(campaignID, employeeID, companyID), nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (GenPhish Test)")
 	rec := httptest.NewRecorder()
 
@@ -107,7 +154,8 @@ func TestTrackClickPublishesAndRedirectsToLanding(t *testing.T) {
 	companyID := uuid.New()
 
 	req := httptest.NewRequest(http.MethodGet,
-		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String(), nil)
+		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+
+			buildSignedTrackingQuery(campaignID, employeeID, companyID), nil)
 	rec := httptest.NewRecorder()
 
 	router.ServeHTTP(rec, req)
@@ -138,7 +186,8 @@ func TestTrackClickRedirectSupportsCampaignIdPathPlaceholder(t *testing.T) {
 	companyID := uuid.New()
 
 	req := httptest.NewRequest(http.MethodGet,
-		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String(), nil)
+		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+
+			buildSignedTrackingQuery(campaignID, employeeID, companyID), nil)
 	rec := httptest.NewRecorder()
 
 	router.ServeHTTP(rec, req)
@@ -178,7 +227,8 @@ func TestTrackClickPropagatesLanguageCode(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&lang=en-US",
+		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&lang=en-US"+
+			buildSignedTrackingQuery(campaignID, employeeID, companyID),
 		nil,
 	)
 	rec := httptest.NewRecorder()
@@ -208,7 +258,8 @@ func TestTrackSubmitPublishesAndRedirectsToAwareness(t *testing.T) {
 	companyID := uuid.New()
 
 	req := httptest.NewRequest(http.MethodPost,
-		"/track/submit?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String(), nil)
+		"/track/submit?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+
+			buildSignedTrackingQuery(campaignID, employeeID, companyID), nil)
 	rec := httptest.NewRecorder()
 
 	router.ServeHTTP(rec, req)
@@ -236,7 +287,8 @@ func TestTrackClickClickOnlyRedirectsToAwareness(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&tc=CLICK_ONLY",
+		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&tc=CLICK_ONLY"+
+			buildSignedTrackingQuery(campaignID, employeeID, companyID),
 		nil,
 	)
 	rec := httptest.NewRecorder()
@@ -265,7 +317,8 @@ func TestTrackDownloadPublishesAndRedirectsToAwareness(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/track/download?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String(),
+		"/track/download?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+
+			buildSignedTrackingQuery(campaignID, employeeID, companyID),
 		nil,
 	)
 	rec := httptest.NewRecorder()
@@ -284,6 +337,35 @@ func TestTrackDownloadPublishesAndRedirectsToAwareness(t *testing.T) {
 	}
 }
 
+func TestTrackClickInvalidSignatureSkipsPublishAndRedirectsAwareness(t *testing.T) {
+	publisher := &mockEventPublisher{}
+	router := newTestRouter(publisher)
+
+	campaignID := uuid.New()
+	employeeID := uuid.New()
+	companyID := uuid.New()
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&exp=9999999999&sig=bad-signature",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	location := rec.Header().Get("Location")
+	if !strings.HasPrefix(location, "http://localhost:3000/awareness?") {
+		t.Fatalf("expected awareness redirect for invalid signature, got %s", location)
+	}
+	if publisher.publishCalls != 0 {
+		t.Fatalf("expected no publish attempts, got %d", publisher.publishCalls)
+	}
+}
+
 func TestTrackOAuthCallbackPublishesConsentGranted(t *testing.T) {
 	publisher := &mockEventPublisher{}
 	router := newTestRouter(publisher)
@@ -291,8 +373,7 @@ func TestTrackOAuthCallbackPublishesConsentGranted(t *testing.T) {
 	campaignID := uuid.New()
 	employeeID := uuid.New()
 	companyID := uuid.New()
-	statePayload := "c=" + campaignID.String() + "&e=" + employeeID.String() + "&co=" + companyID.String() + "&lang=en-US"
-	state := base64.RawURLEncoding.EncodeToString([]byte(statePayload))
+	state := buildSignedOAuthState(campaignID, employeeID, companyID, "en-US", "nonce-abc-123")
 
 	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?state="+url.QueryEscape(state), nil)
 	rec := httptest.NewRecorder()
@@ -318,6 +399,34 @@ func TestTrackOAuthCallbackPublishesConsentGranted(t *testing.T) {
 	}
 }
 
+func TestTrackOAuthCallbackRejectsReplayedNonce(t *testing.T) {
+	publisher := &mockEventPublisher{}
+	router := newTestRouter(publisher)
+
+	campaignID := uuid.New()
+	employeeID := uuid.New()
+	companyID := uuid.New()
+	state := buildSignedOAuthState(campaignID, employeeID, companyID, "EN", "replay-nonce-1")
+
+	firstReq := httptest.NewRequest(http.MethodGet, "/oauth/callback?state="+url.QueryEscape(state), nil)
+	firstRec := httptest.NewRecorder()
+	router.ServeHTTP(firstRec, firstReq)
+	if firstRec.Code != http.StatusFound {
+		t.Fatalf("expected first request 302, got %d", firstRec.Code)
+	}
+
+	secondReq := httptest.NewRequest(http.MethodGet, "/oauth/callback?state="+url.QueryEscape(state), nil)
+	secondRec := httptest.NewRecorder()
+	router.ServeHTTP(secondRec, secondReq)
+
+	if secondRec.Code != http.StatusFound {
+		t.Fatalf("expected second request 302, got %d", secondRec.Code)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("expected replayed state to be ignored, published events=%d", len(publisher.events))
+	}
+}
+
 func TestTrackSubmitPropagatesLanguageCode(t *testing.T) {
 	publisher := &mockEventPublisher{}
 	router := newTestRouter(publisher)
@@ -328,7 +437,8 @@ func TestTrackSubmitPropagatesLanguageCode(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/track/submit?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&languageCode=tr-TR",
+		"/track/submit?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&languageCode=tr-TR"+
+			buildSignedTrackingQuery(campaignID, employeeID, companyID),
 		nil,
 	)
 	rec := httptest.NewRecorder()
@@ -460,7 +570,8 @@ func TestTrackOpenPublisherErrorStillReturnsPixel(t *testing.T) {
 	companyID := uuid.New()
 
 	req := httptest.NewRequest(http.MethodGet,
-		"/track/open?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String(), nil)
+		"/track/open?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+
+			buildSignedTrackingQuery(campaignID, employeeID, companyID), nil)
 	rec := httptest.NewRecorder()
 
 	router.ServeHTTP(rec, req)
@@ -552,7 +663,12 @@ func TestAppendTrackingQueryPreservesExistingQueryValues(t *testing.T) {
 		employeeID: uuid.New(),
 		companyID:  uuid.New(),
 	}
-	result := appendTrackingQuery("http://localhost:3000/phishing?source=email", ids, "EN")
+	result := appendTrackingQuery(
+		"http://localhost:3000/phishing?source=email",
+		ids,
+		"EN",
+		signedTrackingParams{exp: "123", sig: "abc"},
+	)
 
 	parsed, err := url.Parse(result)
 	if err != nil {
@@ -573,6 +689,12 @@ func TestAppendTrackingQueryPreservesExistingQueryValues(t *testing.T) {
 	if parsed.Query().Get("lang") != "EN" {
 		t.Fatalf("expected language query param to be set")
 	}
+	if parsed.Query().Get("exp") != "123" {
+		t.Fatalf("expected exp query param to be set")
+	}
+	if parsed.Query().Get("sig") != "abc" {
+		t.Fatalf("expected sig query param to be set")
+	}
 }
 
 func TestAppendTrackingQueryReturnsReplacedBaseWhenURLIsInvalid(t *testing.T) {
@@ -582,7 +704,7 @@ func TestAppendTrackingQueryReturnsReplacedBaseWhenURLIsInvalid(t *testing.T) {
 		companyID:  uuid.New(),
 	}
 	base := "://bad-host/phishing/{campaignId}"
-	got := appendTrackingQuery(base, ids, "TR")
+	got := appendTrackingQuery(base, ids, "TR", signedTrackingParams{})
 
 	expected := strings.Replace(base, "{campaignId}", ids.campaignID.String(), 1)
 	if got != expected {

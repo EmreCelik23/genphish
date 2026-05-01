@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_port: int = Field(default=5000, alias="API_PORT")
+    service_auth_enabled: bool = Field(default=True, alias="SERVICE_AUTH_ENABLED")
+    service_token: str = Field(default="genphish-internal-token", alias="SERVICE_AUTH_TOKEN")
+    service_token_header: str = Field(default="X-Service-Token", alias="SERVICE_TOKEN_HEADER")
+    company_header: str = Field(default="X-Company-Id", alias="COMPANY_HEADER")
 
     mongo_uri: str = Field(
         default="mongodb://localhost:27017",
