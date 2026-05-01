@@ -99,6 +99,7 @@ Key variables:
 | Variable | Description | Default |
 |---|---|---|
 | `PORT` | HTTP port | `8081` |
+| `APP_ENV` | Runtime environment (`local`, `dev`, `staging`, `prod`) | `local` |
 | `GIN_MODE` | Gin mode (`release`, `debug`) | `release` |
 | `PUBLISH_TIMEOUT_MS` | Kafka publish timeout per request | `300` |
 | `KAFKA_BROKERS` | Kafka broker list | `kafka-1:9092,kafka-2:9092` |
@@ -113,6 +114,7 @@ Key variables:
 | `OAUTH_STATE_HMAC_SECRET` | HMAC secret for OAuth state verification | `genphish-dev-tracking-secret` |
 | `OAUTH_STATE_TTL_SECONDS` | Max OAuth state validity window | `600` |
 | `NONCE_STORE_PROVIDER` | `memory` or `redis` | `memory` |
+| `NONCE_STORE_STRICT` | If `true`, redis nonce-store failure aborts startup | `false` (auto-forced to `true` when `APP_ENV=prod`) |
 | `REDIS_ENABLED` | Enable Redis-backed nonce replay store | `false` |
 | `REDIS_ADDR` / `REDIS_PASSWORD` / `REDIS_DB` | Redis connection settings | `localhost:6379` / empty / `0` |
 
@@ -174,6 +176,16 @@ Health check example:
 ```bash
 curl -s http://localhost:8081/healthz
 ```
+
+## Production safety checks
+
+At startup, tracker validates production-critical config when `APP_ENV=prod`:
+
+- `REQUIRE_SIGNED_LINKS` must be `true`
+- `TRACKING_SIGNATURE_SECRET` and `OAUTH_STATE_HMAC_SECRET` must be strong/non-default
+- Redis-backed nonce store must be enabled (`NONCE_STORE_PROVIDER=redis` or `REDIS_ENABLED=true`)
+
+If Redis nonce store is configured but unavailable, startup fails when `NONCE_STORE_STRICT=true`.
 
 ## Position in GenPhish
 

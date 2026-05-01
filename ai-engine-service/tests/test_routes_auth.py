@@ -35,7 +35,9 @@ class RoutesAuthTests(unittest.TestCase):
         os.environ["SERVICE_AUTH_ENABLED"] = "true"
         os.environ["SERVICE_AUTH_TOKEN"] = "test-service-token"
         os.environ["SERVICE_TOKEN_HEADER"] = "X-Service-Token"
+        os.environ["SERVICE_TOKEN_HEADER_ALIASES"] = ""
         os.environ["COMPANY_HEADER"] = "X-Company-Id"
+        os.environ["COMPANY_HEADER_ALIASES"] = ""
         get_settings.cache_clear()
 
         app = FastAPI()
@@ -118,6 +120,34 @@ class RoutesAuthTests(unittest.TestCase):
         response = self.client.get(
             "/api/templates/abc123",
             headers={"X-Service-Token": "test-service-token"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_generate_accepts_alias_headers_when_configured(self) -> None:
+        os.environ["SERVICE_TOKEN_HEADER_ALIASES"] = "X-Internal-Token"
+        os.environ["COMPANY_HEADER_ALIASES"] = "X-Tenant-Id"
+        get_settings.cache_clear()
+
+        app = FastAPI()
+        app.include_router(routes.router)
+        app.dependency_overrides[routes.get_generation_service] = lambda: FakeGenerationService()
+        app.dependency_overrides[routes.get_template_store] = lambda: FakeTemplateStore()
+        client = TestClient(app)
+
+        company_id = str(uuid4())
+        payload = {
+            "templateId": str(uuid4()),
+            "companyId": company_id,
+            "prompt": "test prompt",
+        }
+
+        response = client.post(
+            "/api/generate",
+            json=payload,
+            headers={
+                "X-Internal-Token": "test-service-token",
+                "X-Tenant-Id": company_id,
+            },
         )
         self.assertEqual(response.status_code, 200)
 

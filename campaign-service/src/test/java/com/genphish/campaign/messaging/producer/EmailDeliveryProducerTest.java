@@ -155,4 +155,33 @@ class EmailDeliveryProducerTest {
         assertTrue(sentEvent.getEmailBodyHtml().contains("state="));
         assertTrue(sentEvent.getEmailBodyHtml().contains("."));
     }
+
+    @Test
+    void sendDeliveryRequest_OAuthConsent_Fails_WhenTargetUrlMissing() {
+        Employee emp = Employee.builder()
+                .id(UUID.randomUUID())
+                .firstName("Jane")
+                .lastName("Doe")
+                .email("jane@example.com")
+                .build();
+
+        PhishingTemplate template = PhishingTemplate.builder()
+                .id(templateId)
+                .templateCategory(TemplateCategory.OAUTH_CONSENT)
+                .targetUrl(" ")
+                .emailSubject("Microsoft consent request")
+                .emailBody("<html>Open this: {{phishing_link}}</html>")
+                .build();
+
+        when(employeeRepository.findAllByCompanyIdAndIsActive(companyId, true))
+                .thenReturn(List.of(emp));
+        when(phishingTemplateRepository.findByIdAndIsActive(templateId, true))
+                .thenReturn(Optional.of(template));
+
+        producer.sendDeliveryRequest(campaign);
+
+        assertEquals(CampaignStatus.FAILED, campaign.getStatus());
+        verify(campaignRepository).save(campaign);
+        verifyNoInteractions(kafkaTemplate);
+    }
 }

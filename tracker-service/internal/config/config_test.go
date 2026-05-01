@@ -32,6 +32,7 @@ func TestServerAddress(t *testing.T) {
 
 func TestLoadDefaults(t *testing.T) {
 	for _, key := range []string{
+		"APP_ENV",
 		"PORT",
 		"GIN_MODE",
 		"PUBLISH_TIMEOUT_MS",
@@ -53,11 +54,15 @@ func TestLoadDefaults(t *testing.T) {
 		"REDIS_ADDR",
 		"REDIS_PASSWORD",
 		"REDIS_DB",
+		"NONCE_STORE_STRICT",
 	} {
 		t.Setenv(key, "")
 	}
 
 	cfg := Load()
+	if cfg.AppEnv != "local" {
+		t.Fatalf("default app env mismatch: got %q", cfg.AppEnv)
+	}
 
 	if cfg.Server.Port != "8081" {
 		t.Fatalf("default port mismatch: got %q", cfg.Server.Port)
@@ -119,10 +124,14 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Security.NonceStore.RedisAddr != "localhost:6379" {
 		t.Fatalf("default redis addr mismatch: got %q", cfg.Security.NonceStore.RedisAddr)
 	}
+	if cfg.Security.NonceStore.Strict {
+		t.Fatalf("default nonce strict mismatch: expected false")
+	}
 }
 
 func TestLoadCustomValues(t *testing.T) {
 	t.Setenv("PORT", "9099")
+	t.Setenv("APP_ENV", "prod")
 	t.Setenv("GIN_MODE", "debug")
 	t.Setenv("PUBLISH_TIMEOUT_MS", "450")
 	t.Setenv("KAFKA_BROKERS", "broker-1:9092, broker-2:9092 , ,")
@@ -143,8 +152,12 @@ func TestLoadCustomValues(t *testing.T) {
 	t.Setenv("REDIS_ADDR", "redis.internal:6380")
 	t.Setenv("REDIS_PASSWORD", "secret")
 	t.Setenv("REDIS_DB", "3")
+	t.Setenv("NONCE_STORE_STRICT", "true")
 
 	cfg := Load()
+	if cfg.AppEnv != "prod" {
+		t.Fatalf("custom app env mismatch: got %q", cfg.AppEnv)
+	}
 
 	if cfg.Server.Port != "9099" {
 		t.Fatalf("custom port mismatch: got %q", cfg.Server.Port)
@@ -209,10 +222,14 @@ func TestLoadCustomValues(t *testing.T) {
 	if cfg.Security.NonceStore.RedisDB != 3 {
 		t.Fatalf("custom redis db mismatch: got %d", cfg.Security.NonceStore.RedisDB)
 	}
+	if !cfg.Security.NonceStore.Strict {
+		t.Fatalf("custom nonce strict mismatch: expected true")
+	}
 }
 
 func TestLoadInvalidNumericValuesFallback(t *testing.T) {
 	t.Setenv("PUBLISH_TIMEOUT_MS", "not-int")
+	t.Setenv("APP_ENV", "prod")
 	t.Setenv("KAFKA_WRITE_TIMEOUT_MS", "invalid")
 	t.Setenv("KAFKA_BATCH_TIMEOUT_MS", "invalid")
 	t.Setenv("KAFKA_BATCH_SIZE", "invalid")
@@ -234,5 +251,48 @@ func TestLoadInvalidNumericValuesFallback(t *testing.T) {
 	}
 	if !reflect.DeepEqual(cfg.Kafka.Brokers, []string{"localhost:9092"}) {
 		t.Fatalf("fallback brokers mismatch: got %v", cfg.Kafka.Brokers)
+	}
+	if !cfg.Security.NonceStore.Strict {
+		t.Fatalf("expected nonce strict true in prod when env is invalid/empty")
+	}
+}
+
+func TestValidateFailsForUnsafeProdConfig(t *testing.T) {
+	cfg := Config{
+		AppEnv: "prod",
+		Security: SecurityConfig{
+			RequireSignedLinks:      false,
+			TrackingSignatureSecret: "genphish-dev-tracking-secret",
+			OAuthStateSecret:        "short",
+			NonceStore: NonceStoreConfig{
+				Provider:     "memory",
+				RedisEnabled: false,
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatalf("expected validate to fail for unsafe prod config")
+	}
+}
+
+func TestValidatePassesForSafeProdConfig(t *testing.T) {
+	cfg := Config{
+		AppEnv: "prod",
+		Security: SecurityConfig{
+			RequireSignedLinks:      true,
+			TrackingSignatureSecret: "abcdefghijklmnopqrstuvwxyz123456",
+			OAuthStateSecret:        "abcdefghijklmnopqrstuvwxyz654321",
+			NonceStore: NonceStoreConfig{
+				Provider:     "redis",
+				RedisEnabled: true,
+				RedisAddr:    "redis.internal:6379",
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected validate to pass, got err=%v", err)
 	}
 }

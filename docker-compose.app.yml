@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  campaign-service:
+    build:
+      context: ./campaign-service
+    container_name: genphish-campaign-service
+    env_file:
+      - ./campaign-service/.env
+    environment:
+      SERVER_PORT: 8080
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PYTHON_SERVICE_BASE_URL: http://ai-engine-service:5000
+      TRACKER_BASE_URL: ${TRACKER_BASE_URL_PUBLIC:-http://localhost:8088}
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:8088}
+      AI_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-genphish-internal-token}
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+      - ai-engine-service
+      - tracker-service
+    expose:
+      - "8080"
+    networks:
+      - genphish_net
+
+  ai-engine-service:
+    build:
+      context: ./ai-engine-service
+    container_name: genphish-ai-engine-service
+    env_file:
+      - ./ai-engine-service/.env
+    environment:
+      API_PORT: 5000
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SERVICE_AUTH_TOKEN: ${INTERNAL_SERVICE_TOKEN:-genphish-internal-token}
+    depends_on:
+      - mongodb
+      - kafka
+    expose:
+      - "5000"
+    networks:
+      - genphish_net
+
+  tracker-service:
+    build:
+      context: ./tracker-service
+    container_name: genphish-tracker-service
+    env_file:
+      - ./tracker-service/.env
+    environment:
+      PORT: 8081
+      KAFKA_BROKERS: kafka:9092
+      NONCE_STORE_PROVIDER: redis
+      REDIS_ENABLED: true
+      REDIS_ADDR: redis:6379
+    depends_on:
+      - kafka
+      - redis
+    expose:
+      - "8081"
+    networks:
+      - genphish_net
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    container_name: genphish-api-gateway
+    depends_on:
+      - campaign-service
+      - tracker-service
+    ports:
+      - "${GATEWAY_PORT:-8088}:8088"
+    volumes:
+      - ./api-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8088/healthz | grep -q 'ok'"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - genphish_net

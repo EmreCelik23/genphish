@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.api import routes
-from app.core.config import get_settings
+from app.core.config import get_settings, validate_runtime_settings
 from app.core.logging import configure_logging
 from app.services.generation_service import GenerationService
 from app.services.generator import RoutingContentGenerator
@@ -18,6 +18,7 @@ from app.services.template_store import TemplateStore
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    validate_runtime_settings(settings)
     configure_logging(settings.log_level)
     logger = logging.getLogger("lifespan")
 

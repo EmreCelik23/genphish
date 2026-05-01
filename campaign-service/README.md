@@ -42,6 +42,8 @@ Auth requirement for API endpoints:
 
 - Send `Authorization: Bearer <APP_API_TOKEN>` (or `X-Service-Token`).
 - For company-scoped routes (`/api/v1/companies/{companyId}/...`), send `X-Company-Id: {companyId}`.
+- Gateway header aliases are supported via `SERVICE_TOKEN_HEADER_ALIASES` and `COMPANY_HEADER_ALIASES`.
+- Optional JWT Bearer auth is supported (`JWT_AUTH_ENABLED=true`), with company-scope authorization from JWT claim (default claim: `companyId`).
 
 ### Company
 
@@ -146,6 +148,7 @@ Key variables:
 | Variable | Description | Default |
 |---|---|---|
 | `SERVER_PORT` | HTTP port | `8080` |
+| `APP_ENV` | Runtime environment (`local`, `dev`, `staging`, `prod`) | `local` |
 | `POSTGRES_*` | PostgreSQL connection | see `.env.example` |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka brokers | `kafka-1:9092,kafka-2:9092` |
 | `REDIS_HOST` / `REDIS_PORT` | Redis cache endpoint | `redis` / `6379` |
@@ -159,11 +162,21 @@ Key variables:
 | `APP_API_TOKEN` | API bearer/service token for campaign endpoints | `genphish-dev-token` |
 | `AI_SERVICE_TOKEN` | Token used by campaign -> ai-engine HTTP calls | `genphish-internal-token` |
 | `SERVICE_TOKEN_HEADER` | Alternate auth header key | `X-Service-Token` |
+| `SERVICE_TOKEN_HEADER_ALIASES` | Optional comma-separated auth header aliases (gateway compatibility) | empty |
 | `COMPANY_HEADER` | Tenant header key | `X-Company-Id` |
+| `COMPANY_HEADER_ALIASES` | Optional comma-separated tenant header aliases (gateway compatibility) | empty |
 | `TRACKING_SIGNATURE_SECRET` | HMAC secret for signed tracker links | `genphish-dev-tracking-secret` |
 | `TRACKING_LINK_TTL_SECONDS` | Signed tracker link lifetime | `604800` |
 | `OAUTH_STATE_HMAC_SECRET` | HMAC secret for OAuth state signing | `genphish-dev-tracking-secret` |
 | `OAUTH_STATE_TTL_SECONDS` | OAuth state lifetime (seconds) | `600` |
+| `JWT_AUTH_ENABLED` | Enable JWT bearer validation in API filter | `false` |
+| `JWT_AUTH_SECRET` | HS256 signing secret for JWT validation | empty |
+| `JWT_AUTH_ISSUER` | Expected JWT issuer (`iss`) | empty |
+| `JWT_AUTH_AUDIENCE` | Expected JWT audience (`aud`) | empty |
+| `JWT_AUTH_COMPANY_CLAIM` | JWT claim used for tenant authorization | `companyId` |
+| `JWT_AUTH_CLOCK_SKEW_SECONDS` | Allowed clock skew for `exp`/`nbf` checks | `30` |
+| `FAIL_ON_UNSAFE_DEFAULTS` | Fail startup in prod if weak/default secrets exist | `true` |
+| `REQUIRE_S3_IN_PROD` | Fail startup in prod when reference image storage is not S3 | `true` |
 | `CAMPAIGN_HIGH_RISK_THRESHOLD` | High-risk employee threshold | `70.0` |
 | `CAMPAIGN_CHECK_RATE_MS` | Scheduler interval for due campaigns | `300000` |
 | `CORS_ALLOWED_ORIGINS` | Allowed frontend origins | `https://app.example.com` |
@@ -212,6 +225,13 @@ Run tests:
 
 ```bash
 mvn test
+```
+
+Run full stack behind API gateway (from repo root):
+
+```bash
+docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --build
 ```
 
 ## Docker (production-oriented)

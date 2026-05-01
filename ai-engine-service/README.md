@@ -144,9 +144,16 @@ python -m pip install -r requirements.txt
    - `SERVICE_AUTH_ENABLED=true`
    - `SERVICE_AUTH_TOKEN=...`
    - `SERVICE_TOKEN_HEADER=X-Service-Token`
+   - `SERVICE_TOKEN_HEADER_ALIASES=X-Internal-Token` (optional, comma-separated)
    - `COMPANY_HEADER=X-Company-Id`
+   - `COMPANY_HEADER_ALIASES=X-Tenant-Id` (optional, comma-separated)
+8. For production hardening, keep strict runtime validation enabled:
+   - `APP_ENV=prod`
+   - `FAIL_ON_UNSAFE_DEFAULTS=true`
+   - `AI_PROVIDER` must not be `stub`
+   - `SERVICE_AUTH_TOKEN` must be strong and non-default
 
-8. Start service:
+9. Start service:
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload
@@ -169,7 +176,9 @@ docker run --rm -p 5000:5000 --env-file .env genphish-ai-engine:prod
 Auth for `/api/*` endpoints:
 
 - `Authorization: Bearer <SERVICE_AUTH_TOKEN>` or `X-Service-Token: <SERVICE_AUTH_TOKEN>`
+- Optional gateway aliases are also accepted when configured via `SERVICE_TOKEN_HEADER_ALIASES`.
 - For company-scoped payloads (`/api/generate`, `/api/templates/{template_id}/clone`), `X-Company-Id` must match payload `companyId`
+  - Optional tenant-header aliases are accepted when configured via `COMPANY_HEADER_ALIASES`.
 
 `POST /api/generate` success response shape:
 
@@ -221,3 +230,4 @@ Request-level overrides are also supported with `provider` and `model` fields.
 - Multimodal image-to-code flow uses `referenceImageUrl` for OpenAI/Anthropic/Gemini providers.
 - Keep `SERVICE_AUTH_TOKEN` aligned with campaign-service `AI_SERVICE_TOKEN`.
 - For production, configure network-level authentication for Kafka and MongoDB.
+- In `APP_ENV=prod`, startup fails fast on unsafe defaults when `FAIL_ON_UNSAFE_DEFAULTS=true`.

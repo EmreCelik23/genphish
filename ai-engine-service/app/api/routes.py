@@ -46,7 +46,12 @@ def require_service_auth(request: Request) -> None:
     if authorization.lower().startswith("bearer "):
         bearer_token = authorization[7:].strip()
 
-    header_token = (request.headers.get(settings.service_token_header) or "").strip()
+    header_token = ""
+    for header_name in settings.service_token_header_name_list:
+        candidate = (request.headers.get(header_name) or "").strip()
+        if candidate:
+            header_token = candidate
+            break
     received_token = bearer_token or header_token
     if not received_token or not hmac.compare_digest(expected_token, received_token):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized request")
@@ -54,12 +59,19 @@ def require_service_auth(request: Request) -> None:
 
 def require_company_scope(request: Request, company_id: UUID) -> None:
     settings = get_settings()
-    header_name = settings.company_header
-    received_company = (request.headers.get(header_name) or "").strip()
+    header_name_list = settings.company_header_name_list
+    received_company = ""
+    resolved_header_name = header_name_list[0] if header_name_list else settings.company_header
+    for header_name in header_name_list:
+        candidate = (request.headers.get(header_name) or "").strip()
+        if candidate:
+            received_company = candidate
+            resolved_header_name = header_name
+            break
     if not received_company:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Missing required tenant header: {header_name}",
+            detail=f"Missing required tenant header: {resolved_header_name}",
         )
     if received_company.lower() != str(company_id).lower():
         raise HTTPException(

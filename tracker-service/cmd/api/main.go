@@ -21,8 +21,10 @@ import (
 
 func main() {
 	cfg := config.Load()
-
 	logger := log.New(os.Stdout, "[tracker-service] ", log.LstdFlags|log.LUTC)
+	if err := cfg.Validate(); err != nil {
+		logger.Fatalf("configuration validation failed: %v", err)
+	}
 	gin.SetMode(cfg.Server.GinMode)
 
 	publisher, err := kafka.NewEventPublisher(cfg.Kafka, logger)
@@ -44,6 +46,9 @@ func main() {
 			DB:       cfg.Security.NonceStore.RedisDB,
 		})
 		if pingErr := redisClient.Ping(context.Background()).Err(); pingErr != nil {
+			if cfg.Security.NonceStore.Strict {
+				logger.Fatalf("redis nonce-store is required but unavailable: %v", pingErr)
+			}
 			logger.Printf("redis nonce-store unavailable, falling back to memory store: %v", pingErr)
 			_ = redisClient.Close()
 		} else {
