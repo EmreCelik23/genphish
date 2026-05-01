@@ -5,6 +5,7 @@ import com.genphish.campaign.entity.Campaign;
 import com.genphish.campaign.entity.Employee;
 import com.genphish.campaign.entity.PhishingTemplate;
 import com.genphish.campaign.entity.enums.LanguageCode;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 import com.genphish.campaign.messaging.event.EmailDeliveryEvent;
 import com.genphish.campaign.repository.CampaignRepository;
 import com.genphish.campaign.repository.CampaignTargetRepository;
@@ -15,7 +16,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 
 @Component
@@ -64,6 +68,16 @@ public class EmailDeliveryProducer {
         String languageCode = template.getLanguageCode() != null
                 ? template.getLanguageCode().name()
                 : LanguageCode.TR.name();
+        TemplateCategory templateCategory = template.getTemplateCategory() != null
+                ? template.getTemplateCategory()
+                : TemplateCategory.CREDENTIAL_HARVESTING;
+        if (templateCategory == TemplateCategory.OAUTH_CONSENT
+                && (template.getTargetUrl() == null || template.getTargetUrl().isBlank())) {
+            log.error("Aborting email delivery and setting campaign {} to FAILED. Reason: OAUTH_CONSENT template requires targetUrl.", campaign.getId());
+            campaign.setStatus(com.genphish.campaign.entity.enums.CampaignStatus.FAILED);
+            campaignRepository.save(campaign);
+            return;
+        }
 
         // 3. Assemble Fat Events and Push to Kafka
         for (Employee emp : targets) {
@@ -71,10 +85,17 @@ public class EmailDeliveryProducer {
                     "%s/track/open?c=%s&e=%s&co=%s&lang=%s",
                     trackerBaseUrl, campaign.getId(), emp.getId(), campaign.getCompanyId(), languageCode
             );
-            String phishingLinkUrl = String.format(
-                    "%s/track/click?c=%s&e=%s&co=%s&lang=%s",
-                    trackerBaseUrl, campaign.getId(), emp.getId(), campaign.getCompanyId(), languageCode
-            );
+            String phishingLinkUrl = templateCategory == TemplateCategory.OAUTH_CONSENT
+                    ? buildOAuthConsentLink(template.getTargetUrl(), campaign.getId(), emp.getId(), campaign.getCompanyId(), languageCode)
+                    : String.format(
+                        "%s/track/click?c=%s&e=%s&co=%s&lang=%s&tc=%s",
+                        trackerBaseUrl,
+                        campaign.getId(),
+                        emp.getId(),
+                        campaign.getCompanyId(),
+                        languageCode,
+                        templateCategory.name()
+                    );
 
             // Prepare the HTML content by replacing tags like {{name}} or {{department}}.
             String personalizedHtml = emailBodyHtml
@@ -133,5 +154,36 @@ public class EmailDeliveryProducer {
                 event
         );
         log.debug("Sent email delivery event for employee {} in campaign {}", event.getEmployeeId(), event.getCampaignId());
+    }
+
+    private String buildOAuthConsentLink(
+            String targetUrl,
+            java.util.UUID campaignId,
+            java.util.UUID employeeId,
+            java.util.UUID companyId,
+            String languageCode
+    ) {
+        String state = buildOAuthState(campaignId, employeeId, companyId, languageCode);
+        try {
+            return UriComponentsBuilder.fromUriString(targetUrl)
+                    .replaceQueryParam("state", state)
+                    .build(true)
+                    .toUriString();
+        } catch (Exception e) {
+            log.warn("Failed to build oauth consent URL with state; using raw target URL.", e);
+            return targetUrl;
+        }
+    }
+
+    private String buildOAuthState(
+            java.util.UUID campaignId,
+            java.util.UUID employeeId,
+            java.util.UUID companyId,
+            String languageCode
+    ) {
+        String payload = String.format("c=%s&e=%s&co=%s&lang=%s", campaignId, employeeId, companyId, languageCode);
+        return Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
     }
 }

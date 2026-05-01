@@ -18,7 +18,11 @@ public class CampaignFunnelResponse {
     private long emailsOpened;
     private long linksClicked;
     private long credentialsSubmitted;
+    private long downloadTriggered;
+    private long consentGranted;
+    private long actionsTaken;
     private double openRate;
     private double clickRate;
     private double submitRate;
+    private double actionRate;
 }

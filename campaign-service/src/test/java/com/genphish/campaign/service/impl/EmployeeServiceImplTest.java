@@ -179,6 +179,8 @@ class EmployeeServiceImplTest {
         when(trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.EMAIL_OPENED)).thenReturn(5L);
         when(trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.LINK_CLICKED)).thenReturn(3L);
         when(trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.CREDENTIALS_SUBMITTED)).thenReturn(1L);
+        when(trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.DOWNLOAD_TRIGGERED)).thenReturn(2L);
+        when(trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.CONSENT_GRANTED)).thenReturn(1L);
         
         TrackingEvent event1 = TrackingEvent.builder().campaignId(UUID.randomUUID()).build();
         TrackingEvent event2 = TrackingEvent.builder().campaignId(event1.getCampaignId()).build(); // duplicate campaign
@@ -191,6 +193,9 @@ class EmployeeServiceImplTest {
         assertThat(profile.getEmailsOpened()).isEqualTo(5L);
         assertThat(profile.getLinksClicked()).isEqualTo(3L);
         assertThat(profile.getCredentialsSubmitted()).isEqualTo(1L);
+        assertThat(profile.getDownloadTriggered()).isEqualTo(2L);
+        assertThat(profile.getConsentGranted()).isEqualTo(1L);
+        assertThat(profile.getActionsTaken()).isEqualTo(7L);
         assertThat(profile.getTotalCampaigns()).isEqualTo(1L); // distinct campaign count
     }
 

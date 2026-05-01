@@ -4,6 +4,7 @@ from uuid import uuid4
 from app.models.events import (
     AiGenerationRequestEvent,
     LanguageCode,
+    TemplateCreatedResponse,
     normalize_language_code,
 )
 from app.models.template import TemplateDocument
@@ -56,6 +57,15 @@ class ModelsAndUtilsTests(unittest.TestCase):
         self.assertEqual(RoutingContentGenerator._normalize_provider("google"), "gemini")
         self.assertEqual(RoutingContentGenerator._normalize_provider("claude"), "anthropic")
         self.assertEqual(RoutingContentGenerator._normalize_provider("chatgpt"), "openai")
+
+    def test_template_created_response_includes_mongo_template_id(self) -> None:
+        response = TemplateCreatedResponse(
+            templateId=uuid4(),
+            mongoTemplateId="mongo_abc123",
+            status="SUCCESS",
+        )
+        dumped = response.model_dump(by_alias=True, mode="json")
+        self.assertEqual(dumped["mongoTemplateId"], "mongo_abc123")
 
 
 if __name__ == "__main__":

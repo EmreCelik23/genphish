@@ -2,6 +2,7 @@ package com.genphish.campaign.dto.response;
 
 import com.genphish.campaign.entity.enums.DifficultyLevel;
 import com.genphish.campaign.entity.enums.LanguageCode;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 import com.genphish.campaign.entity.enums.TemplateStatus;
 import com.genphish.campaign.entity.enums.TemplateType;
 import lombok.AllArgsConstructor;
@@ -20,6 +21,7 @@ public class PhishingTemplateResponse {
     private UUID companyId;
     private String name;
     private String category;
+    private TemplateCategory templateCategory;
     private TemplateType type;
     private TemplateStatus status;
     private DifficultyLevel difficultyLevel;
@@ -29,5 +31,6 @@ public class PhishingTemplateResponse {
     private String landingPageHtml;
     private String prompt;
     private String targetUrl;
+    private String referenceImageUrl;
     private boolean fallbackContentUsed;
 }

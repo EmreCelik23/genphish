@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from app.core.config import Settings
-from app.models.events import AiGenerationRequestEvent, LanguageCode
+from app.models.events import AiGenerationRequestEvent, LanguageCode, TemplateCategory
 from app.services.prompt_loader import PromptLoader
 from app.services.utils import infer_department_label
 
@@ -88,7 +89,10 @@ class RoutingContentGenerator:
 
         assert chat_model is not None
         email_result = await self._generate_email(chat_model, request)
-        landing_result = await self._generate_landing(chat_model, request, email_result.subject)
+        if request.template_category in {TemplateCategory.CLICK_ONLY, TemplateCategory.OAUTH_CONSENT}:
+            landing_result = LandingGenerationOutput(landing_page_code="")
+        else:
+            landing_result = await self._generate_landing(chat_model, request, email_result.subject, provider)
 
         return GeneratedTemplateParts(
             subject=email_result.subject,
@@ -120,9 +124,15 @@ class RoutingContentGenerator:
         provider, model_name, chat_model = self._resolve_runtime(request)
         if provider == "stub":
             return await self._stub_generator.generate_landing_page(request, email_subject)
+        if request.template_category in {TemplateCategory.CLICK_ONLY, TemplateCategory.OAUTH_CONSENT}:
+            return GeneratedLandingPageParts(
+                landing_page_code="",
+                provider=provider,
+                model=model_name,
+            )
 
         assert chat_model is not None
-        landing_result = await self._generate_landing(chat_model, request, email_subject)
+        landing_result = await self._generate_landing(chat_model, request, email_subject, provider)
         return GeneratedLandingPageParts(
             landing_page_code=landing_result.landing_page_code,
             provider=provider,
@@ -154,6 +164,7 @@ class RoutingContentGenerator:
                 "difficulty_level": request.difficulty_level,
                 "prompt": request.prompt or "Corporate phishing awareness scenario",
                 "target_url": request.target_url or "N/A",
+                "template_category": request.template_category.value,
                 "language_instruction": language_instruction,
                 "language_label": language_label,
             }
@@ -164,7 +175,15 @@ class RoutingContentGenerator:
         chat_model: Any,
         request: AiGenerationRequestEvent,
         email_subject: str,
+        provider: str,
     ) -> LandingGenerationOutput:
+        if request.reference_image_url and provider == "openai":
+            return await self._generate_landing_with_reference_image(
+                chat_model=chat_model,
+                request=request,
+                email_subject=email_subject,
+            )
+
         landing_chain = ChatPromptTemplate.from_messages(
             [
                 ("system", self._landing_system_prompt),
@@ -181,10 +200,51 @@ class RoutingContentGenerator:
                 "prompt": request.prompt or "Corporate phishing awareness scenario",
                 "target_url": request.target_url or "N/A",
                 "email_subject": email_subject,
+                "template_category": request.template_category.value,
+                "landing_action_endpoint": self._resolve_landing_action_endpoint(request.template_category),
                 "language_instruction": language_instruction,
                 "language_label": language_label,
             }
         )
+
+    async def _generate_landing_with_reference_image(
+        self,
+        chat_model: Any,
+        request: AiGenerationRequestEvent,
+        email_subject: str,
+    ) -> LandingGenerationOutput:
+        structured_model = chat_model.with_structured_output(LandingGenerationOutput)
+
+        language_instruction = self._language_instruction(request.language_code)
+        language_label = self._language_label(request.language_code)
+        landing_action_endpoint = self._resolve_landing_action_endpoint(request.template_category)
+
+        user_prompt = self._landing_user_prompt.format(
+            difficulty_level=request.difficulty_level,
+            prompt=request.prompt or "Corporate phishing awareness scenario",
+            target_url=request.target_url or "N/A",
+            email_subject=email_subject,
+            template_category=request.template_category.value,
+            landing_action_endpoint=landing_action_endpoint,
+            language_label=language_label,
+            language_instruction=language_instruction,
+        )
+
+        system_prompt = (
+            self._landing_system_prompt
+            + "\nWhen a reference image is attached, clone layout and visual hierarchy while keeping the simulation-safe tracking flow."
+        )
+
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": user_prompt},
+                    {"type": "image_url", "image_url": {"url": request.reference_image_url}},
+                ]
+            ),
+        ]
+        return await structured_model.ainvoke(messages)
 
     def _get_chat_model(self, provider: str, model_name: str) -> Any:
         cache_key = (provider, model_name)
@@ -266,6 +326,12 @@ class RoutingContentGenerator:
     def _language_label(language_code: LanguageCode) -> str:
         return "English" if language_code == LanguageCode.EN else "Turkish"
 
+    @staticmethod
+    def _resolve_landing_action_endpoint(category: TemplateCategory) -> str:
+        if category == TemplateCategory.MALWARE_DELIVERY:
+            return "/track/download"
+        return "/track/submit"
+
 
 class StubContentGenerator:
     def __init__(self) -> None:
@@ -273,7 +339,14 @@ class StubContentGenerator:
 
     async def generate(self, request: AiGenerationRequestEvent) -> GeneratedTemplateParts:
         email_parts = await self.generate_email(request)
-        landing_parts = await self.generate_landing_page(request, email_parts.subject)
+        if request.template_category in {TemplateCategory.CLICK_ONLY, TemplateCategory.OAUTH_CONSENT}:
+            landing_parts = GeneratedLandingPageParts(
+                landing_page_code="",
+                provider="stub",
+                model=self._model_name,
+            )
+        else:
+            landing_parts = await self.generate_landing_page(request, email_parts.subject)
         return GeneratedTemplateParts(
             subject=email_parts.subject,
             body_html=email_parts.body_html,
@@ -319,6 +392,49 @@ class StubContentGenerator:
         email_subject: str,
     ) -> GeneratedLandingPageParts:
         del email_subject
+
+        if request.template_category == TemplateCategory.MALWARE_DELIVERY:
+            if request.language_code == LanguageCode.EN:
+                title = "Secure Document Center"
+                description = "Your invoice is ready. Click below to download."
+                button_text = "Download Invoice"
+            else:
+                title = "Guvenli Belge Merkezi"
+                description = "Faturanız hazır. İndirmek için aşağıya tıklayın."
+                button_text = "Faturayi Indir"
+
+            landing_page_code = (
+                "'use client';\n"
+                "import { usePathname, useSearchParams } from 'next/navigation';\n"
+                "\n"
+                "export default function DownloadPortalPage() {\n"
+                "  const query = useSearchParams();\n"
+                "  const pathname = usePathname();\n"
+                "  const pathParts = pathname.split('/').filter(Boolean);\n"
+                "  const pathCampaignId = pathParts.length > 0 ? pathParts[pathParts.length - 1] : '';\n"
+                "  const c = query.get('c') || pathCampaignId;\n"
+                "  const e = query.get('e') || '';\n"
+                "  const co = query.get('co') || '';\n"
+                "  const lang = query.get('lang') || '';\n"
+                "  const action = `/track/download?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}`;\n"
+                "\n"
+                "  return (\n"
+                "    <main style={{ maxWidth: 460, margin: '64px auto', fontFamily: 'system-ui' }}>\n"
+                f"      <h1>{title}</h1>\n"
+                f"      <p>{description}</p>\n"
+                "      <form method=\"POST\" action={action}>\n"
+                f"        <button type=\"submit\">{button_text}</button>\n"
+                "      </form>\n"
+                "    </main>\n"
+                "  );\n"
+                "}\n"
+            )
+
+            return GeneratedLandingPageParts(
+                landing_page_code=landing_page_code,
+                provider="stub",
+                model=self._model_name,
+            )
 
         if request.language_code == LanguageCode.EN:
             title = "Corporate Sign In"

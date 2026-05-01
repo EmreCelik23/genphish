@@ -170,6 +170,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         long emailsOpened = trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.EMAIL_OPENED);
         long linksClicked = trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.LINK_CLICKED);
         long credentialsSubmitted = trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.CREDENTIALS_SUBMITTED);
+        long downloadTriggered = trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.DOWNLOAD_TRIGGERED);
+        long consentGranted = trackingEventRepository.countByEmployeeIdAndEventType(employeeId, TrackingEventType.CONSENT_GRANTED);
+        long actionsTaken = linksClicked + credentialsSubmitted + downloadTriggered + consentGranted;
 
         // Total unique campaigns this employee participated in
         long totalCampaigns = trackingEventRepository.findAllByEmployeeId(employeeId).stream()
@@ -187,6 +190,9 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .emailsOpened(emailsOpened)
                 .linksClicked(linksClicked)
                 .credentialsSubmitted(credentialsSubmitted)
+                .downloadTriggered(downloadTriggered)
+                .consentGranted(consentGranted)
+                .actionsTaken(actionsTaken)
                 .lastPhishedAt(employee.getLastPhishedAt())
                 .build();
                 

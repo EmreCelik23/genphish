@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 
-from app.models.events import AiGenerationRequestEvent, LanguageCode, RegenerationScope
+from app.models.events import AiGenerationRequestEvent, LanguageCode, RegenerationScope, TemplateCategory
 from app.models.template import TemplateDocument
 from app.services.generator import ContentGenerator, GeneratedTemplateParts
 from app.services.template_store import TemplateStore
@@ -40,6 +40,8 @@ class GenerationService:
             companyId=request.company_id,
             prompt=request.prompt or "",
             targetUrl=request.target_url or "",
+            referenceImageUrl=request.reference_image_url,
+            templateCategory=request.template_category,
             difficultyLevel=request.difficulty_level,
             languageCode=request.language_code,
             subject=parts.subject,
@@ -162,64 +164,167 @@ class GenerationService:
     @staticmethod
     def _default_fallback_parts(request: AiGenerationRequestEvent) -> GeneratedTemplateParts:
         is_english = request.language_code == LanguageCode.EN
-        if is_english:
-            subject = f"{request.difficulty_level.title()} Security Verification"
-            body_html = (
-                "<html><body>"
-                "<p>Hello {{name}},</p>"
-                "<p>A verification step is pending for the {{department}} department.</p>"
-                "<p>To complete the process, please "
-                "<a href=\"{{phishing_link}}\">click here</a>.</p>"
-                "<p>IT Service Desk</p>"
-                "</body></html>"
-            )
-            page_title = "Corporate Account Sign In"
-            email_placeholder = "Email"
-            pass_placeholder = "Password"
-            button_text = "Sign In"
-        else:
-            subject = f"{request.difficulty_level.title()} Güvenlik Kontrolü"
-            body_html = (
-                "<html><body>"
-                "<p>Merhaba {{name}},</p>"
-                "<p>{{department}} birimi için hesap doğrulama adımı beklemektedir.</p>"
-                "<p>Lütfen işlemi tamamlamak için "
-                "<a href=\"{{phishing_link}}\">buraya tıklayın</a>.</p>"
-                "<p>IT Servis Masası</p>"
-                "</body></html>"
-            )
-            page_title = "Kurumsal Hesap Girişi"
-            email_placeholder = "E-posta"
-            pass_placeholder = "Şifre"
-            button_text = "Giriş Yap"
+        category = request.template_category or TemplateCategory.CREDENTIAL_HARVESTING
 
-        landing_page_code = (
-            "'use client';\n"
-            "import { usePathname, useSearchParams } from 'next/navigation';\n"
-            "\n"
-            "export default function LoginPage() {\n"
-            "  const qp = useSearchParams();\n"
-            "  const pathname = usePathname();\n"
-            "  const pathParts = pathname.split('/').filter(Boolean);\n"
-            "  const pathCampaignId = pathParts.length > 0 ? pathParts[pathParts.length - 1] : '';\n"
-            "  const c = qp.get('c') || pathCampaignId;\n"
-            "  const e = qp.get('e') || '';\n"
-            "  const co = qp.get('co') || '';\n"
-            "  const lang = qp.get('lang') || '';\n"
-            "  const action = `/track/submit?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}`;\n"
-            "\n"
-            "  return (\n"
-            "    <main style={{ maxWidth: 420, margin: '48px auto', fontFamily: 'system-ui' }}>\n"
-            f"      <h1>{page_title}</h1>\n"
-            "      <form method=\"POST\" action={action}>\n"
-            f"        <input name=\"username\" type=\"email\" placeholder=\"{email_placeholder}\" required style={{ width: '100%', marginBottom: 12 }} />\n"
-            f"        <input name=\"password\" type=\"password\" placeholder=\"{pass_placeholder}\" required style={{ width: '100%', marginBottom: 12 }} />\n"
-            f"        <button type=\"submit\">{button_text}</button>\n"
-            "      </form>\n"
-            "    </main>\n"
-            "  );\n"
-            "}\n"
-        )
+        if category == TemplateCategory.CLICK_ONLY:
+            if is_english:
+                subject = f"{request.difficulty_level.title()} Mandatory Policy Update"
+                body_html = (
+                    "<html><body>"
+                    "<p>Hello {{name}},</p>"
+                    "<p>The {{department}} department has published an urgent policy update.</p>"
+                    "<p>Please <a href=\"{{phishing_link}}\">review the update immediately</a>.</p>"
+                    "<p>Compliance Team</p>"
+                    "</body></html>"
+                )
+            else:
+                subject = f"{request.difficulty_level.title()} Acil Politika Güncellemesi"
+                body_html = (
+                    "<html><body>"
+                    "<p>Merhaba {{name}},</p>"
+                    "<p>{{department}} birimi için acil bir politika güncellemesi yayınlandı.</p>"
+                    "<p>Lütfen <a href=\"{{phishing_link}}\">güncellemeyi hemen inceleyin</a>.</p>"
+                    "<p>Uyum Ekibi</p>"
+                    "</body></html>"
+                )
+            landing_page_code = ""
+        elif category == TemplateCategory.MALWARE_DELIVERY:
+            if is_english:
+                subject = f"{request.difficulty_level.title()} Invoice Requires Download"
+                body_html = (
+                    "<html><body>"
+                    "<p>Hello {{name}},</p>"
+                    "<p>A finance document is waiting for the {{department}} department.</p>"
+                    "<p>Please <a href=\"{{phishing_link}}\">open the document portal</a> and download the file.</p>"
+                    "<p>Finance Operations</p>"
+                    "</body></html>"
+                )
+                page_title = "Document Center"
+                page_description = "A new invoice is available. Click below to download."
+                button_text = "Download Invoice"
+            else:
+                subject = f"{request.difficulty_level.title()} Fatura İndirme Bildirimi"
+                body_html = (
+                    "<html><body>"
+                    "<p>Merhaba {{name}},</p>"
+                    "<p>{{department}} birimi için bir finans belgesi hazırlandı.</p>"
+                    "<p>Lütfen <a href=\"{{phishing_link}}\">belge portalına gidip</a> dosyayı indirin.</p>"
+                    "<p>Finans Operasyonları</p>"
+                    "</body></html>"
+                )
+                page_title = "Belge Merkezi"
+                page_description = "Yeni bir fatura hazırlandı. İndirmek için aşağıya tıklayın."
+                button_text = "Faturayı İndir"
+
+            landing_page_code = (
+                "'use client';\n"
+                "import { usePathname, useSearchParams } from 'next/navigation';\n"
+                "\n"
+                "export default function DownloadPage() {\n"
+                "  const qp = useSearchParams();\n"
+                "  const pathname = usePathname();\n"
+                "  const pathParts = pathname.split('/').filter(Boolean);\n"
+                "  const pathCampaignId = pathParts.length > 0 ? pathParts[pathParts.length - 1] : '';\n"
+                "  const c = qp.get('c') || pathCampaignId;\n"
+                "  const e = qp.get('e') || '';\n"
+                "  const co = qp.get('co') || '';\n"
+                "  const lang = qp.get('lang') || '';\n"
+                "  const action = `/track/download?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}`;\n"
+                "\n"
+                "  return (\n"
+                "    <main style={{ maxWidth: 520, margin: '56px auto', fontFamily: 'system-ui' }}>\n"
+                f"      <h1>{page_title}</h1>\n"
+                f"      <p>{page_description}</p>\n"
+                "      <form method=\"POST\" action={action}>\n"
+                f"        <button type=\"submit\">{button_text}</button>\n"
+                "      </form>\n"
+                "    </main>\n"
+                "  );\n"
+                "}\n"
+            )
+        elif category == TemplateCategory.OAUTH_CONSENT:
+            if is_english:
+                subject = f"{request.difficulty_level.title()} Sign In With Microsoft"
+                body_html = (
+                    "<html><body>"
+                    "<p>Hello {{name}},</p>"
+                    "<p>The {{department}} department requests access approval for an internal app.</p>"
+                    "<p>Please continue with your Microsoft account here: "
+                    "<a href=\"{{phishing_link}}\">Grant access</a>.</p>"
+                    "<p>IT Service Desk</p>"
+                    "</body></html>"
+                )
+            else:
+                subject = f"{request.difficulty_level.title()} Microsoft ile Giriş Doğrulaması"
+                body_html = (
+                    "<html><body>"
+                    "<p>Merhaba {{name}},</p>"
+                    "<p>{{department}} birimi iç uygulama erişimi için onay talep ediyor.</p>"
+                    "<p>Lütfen Microsoft hesabınızla devam edin: "
+                    "<a href=\"{{phishing_link}}\">Erişime izin ver</a>.</p>"
+                    "<p>IT Servis Masası</p>"
+                    "</body></html>"
+                )
+            landing_page_code = ""
+        else:
+            if is_english:
+                subject = f"{request.difficulty_level.title()} Security Verification"
+                body_html = (
+                    "<html><body>"
+                    "<p>Hello {{name}},</p>"
+                    "<p>A verification step is pending for the {{department}} department.</p>"
+                    "<p>To complete the process, please "
+                    "<a href=\"{{phishing_link}}\">click here</a>.</p>"
+                    "<p>IT Service Desk</p>"
+                    "</body></html>"
+                )
+                page_title = "Corporate Account Sign In"
+                email_placeholder = "Email"
+                pass_placeholder = "Password"
+                button_text = "Sign In"
+            else:
+                subject = f"{request.difficulty_level.title()} Güvenlik Kontrolü"
+                body_html = (
+                    "<html><body>"
+                    "<p>Merhaba {{name}},</p>"
+                    "<p>{{department}} birimi için hesap doğrulama adımı beklemektedir.</p>"
+                    "<p>Lütfen işlemi tamamlamak için "
+                    "<a href=\"{{phishing_link}}\">buraya tıklayın</a>.</p>"
+                    "<p>IT Servis Masası</p>"
+                    "</body></html>"
+                )
+                page_title = "Kurumsal Hesap Girişi"
+                email_placeholder = "E-posta"
+                pass_placeholder = "Şifre"
+                button_text = "Giriş Yap"
+
+            landing_page_code = (
+                "'use client';\n"
+                "import { usePathname, useSearchParams } from 'next/navigation';\n"
+                "\n"
+                "export default function LoginPage() {\n"
+                "  const qp = useSearchParams();\n"
+                "  const pathname = usePathname();\n"
+                "  const pathParts = pathname.split('/').filter(Boolean);\n"
+                "  const pathCampaignId = pathParts.length > 0 ? pathParts[pathParts.length - 1] : '';\n"
+                "  const c = qp.get('c') || pathCampaignId;\n"
+                "  const e = qp.get('e') || '';\n"
+                "  const co = qp.get('co') || '';\n"
+                "  const lang = qp.get('lang') || '';\n"
+                "  const action = `/track/submit?c=${c}&e=${e}&co=${co}${lang ? `&lang=${lang}` : ''}`;\n"
+                "\n"
+                "  return (\n"
+                "    <main style={{ maxWidth: 420, margin: '48px auto', fontFamily: 'system-ui' }}>\n"
+                f"      <h1>{page_title}</h1>\n"
+                "      <form method=\"POST\" action={action}>\n"
+                f"        <input name=\"username\" type=\"email\" placeholder=\"{email_placeholder}\" required style={{ width: '100%', marginBottom: 12 }} />\n"
+                f"        <input name=\"password\" type=\"password\" placeholder=\"{pass_placeholder}\" required style={{ width: '100%', marginBottom: 12 }} />\n"
+                f"        <button type=\"submit\">{button_text}</button>\n"
+                "      </form>\n"
+                "    </main>\n"
+                "  );\n"
+                "}\n"
+            )
         return GeneratedTemplateParts(
             subject=subject,
             body_html=body_html,
@@ -247,7 +352,7 @@ class GenerationService:
         if enforce_email:
             body_html = self._enforce_email_body_contract(request, parts.body_html, fallback.body_html)
         if enforce_landing:
-            landing_page_code = self._enforce_landing_contract(parts.landing_page_code, fallback.landing_page_code)
+            landing_page_code = self._enforce_landing_contract(request, parts.landing_page_code, fallback.landing_page_code)
 
         return GeneratedTemplateParts(
             subject=subject,
@@ -292,14 +397,20 @@ class GenerationService:
 
     @staticmethod
     def _enforce_landing_contract(
+        request: AiGenerationRequestEvent,
         landing_page_code: str,
         fallback_landing_page_code: str,
     ) -> str:
         landing = (landing_page_code or "").strip()
+        category = request.template_category or TemplateCategory.CREDENTIAL_HARVESTING
+        if category in {TemplateCategory.CLICK_ONLY, TemplateCategory.OAUTH_CONSENT}:
+            return landing
+
         if not landing:
             return fallback_landing_page_code
 
-        required_tokens = ("/track/submit", "c=", "e=", "co=")
+        required_endpoint = "/track/download" if category == TemplateCategory.MALWARE_DELIVERY else "/track/submit"
+        required_tokens = (required_endpoint, "c=", "e=", "co=")
         if any(token not in landing for token in required_tokens):
             return fallback_landing_page_code
         return landing

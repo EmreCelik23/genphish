@@ -1,6 +1,7 @@
 package com.genphish.campaign.dto.request;
 
 import com.genphish.campaign.entity.enums.RegenerationScope;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -23,4 +24,6 @@ public class RegenerateTemplateRequest {
     // Optional overrides for AI Engine
     private String aiProvider;
     private String aiModel;
+    private TemplateCategory templateCategory;
+    private String referenceImageUrl;
 }

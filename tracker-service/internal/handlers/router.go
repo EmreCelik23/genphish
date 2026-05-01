@@ -14,4 +14,7 @@ func RegisterRoutes(router *gin.Engine, trackingHandler *TrackingHandler) {
 	router.GET("/track/open", trackingHandler.TrackOpen)
 	router.GET("/track/click", trackingHandler.TrackClick)
 	router.POST("/track/submit", trackingHandler.TrackSubmit)
+	router.GET("/track/download", trackingHandler.TrackDownload)
+	router.POST("/track/download", trackingHandler.TrackDownload)
+	router.GET("/oauth/callback", trackingHandler.TrackOAuthCallback)
 }

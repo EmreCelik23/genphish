@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.RegenerationScope;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 
 @Data
 @Builder
@@ -19,6 +20,8 @@ public class AiGenerationRequestEvent {
     private UUID companyId;
     private String prompt;            // Scenario description
     private String targetUrl;         // URL to clone for landing page
+    private String referenceImageUrl; // Optional design reference image URL
+    private TemplateCategory templateCategory;
     private String difficultyLevel;   // AMATEUR or PROFESSIONAL
     private LanguageCode languageCode;
     private String provider;          // openai, anthropic, gemini, stub

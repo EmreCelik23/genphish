@@ -20,6 +20,9 @@ public class EmployeeRiskProfileResponse {
     private long emailsOpened;           // Times the tracking pixel was triggered
     private long linksClicked;           // Times the phishing link was clicked
     private long credentialsSubmitted;   // Times data was entered on fake page
+    private long downloadTriggered;      // Times malicious download simulation action was triggered
+    private long consentGranted;         // Times OAuth consent was granted in simulation
+    private long actionsTaken;           // Aggregated risky actions across all simulation categories
 
     private LocalDateTime lastPhishedAt;
 }

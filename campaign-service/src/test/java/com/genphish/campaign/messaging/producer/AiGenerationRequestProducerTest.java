@@ -5,6 +5,7 @@ import com.genphish.campaign.entity.PhishingTemplate;
 import com.genphish.campaign.entity.enums.DifficultyLevel;
 import com.genphish.campaign.entity.enums.LanguageCode;
 import com.genphish.campaign.entity.enums.RegenerationScope;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 import com.genphish.campaign.messaging.event.AiGenerationRequestEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,8 @@ class AiGenerationRequestProducerTest {
                 .companyId(companyId)
                 .prompt("Generate a test email")
                 .targetUrl("https://example.com")
+                .referenceImageUrl("https://cdn.example.com/reference.png")
+                .templateCategory(TemplateCategory.CREDENTIAL_HARVESTING)
                 .difficultyLevel(DifficultyLevel.PROFESSIONAL)
                 .languageCode(LanguageCode.EN)
                 .build();
@@ -67,6 +70,8 @@ class AiGenerationRequestProducerTest {
         assertEquals("Generate a test email", sentEvent.getPrompt());
         assertEquals(DifficultyLevel.PROFESSIONAL.name(), sentEvent.getDifficultyLevel());
         assertEquals(LanguageCode.EN, sentEvent.getLanguageCode());
+        assertEquals("https://cdn.example.com/reference.png", sentEvent.getReferenceImageUrl());
+        assertEquals(TemplateCategory.CREDENTIAL_HARVESTING, sentEvent.getTemplateCategory());
         assertEquals(RegenerationScope.ONLY_EMAIL, sentEvent.getRegenerationScope());
         assertEquals("mongo_456", sentEvent.getExistingMongoTemplateId());
     }

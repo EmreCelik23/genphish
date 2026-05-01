@@ -12,6 +12,8 @@ const (
 	EventEmailOpened          TrackingEventType = "EMAIL_OPENED"
 	EventLinkClicked          TrackingEventType = "LINK_CLICKED"
 	EventCredentialsSubmitted TrackingEventType = "CREDENTIALS_SUBMITTED"
+	EventDownloadTriggered    TrackingEventType = "DOWNLOAD_TRIGGERED"
+	EventConsentGranted       TrackingEventType = "CONSENT_GRANTED"
 )
 
 type TrackingEvent struct {

@@ -3,14 +3,18 @@ package com.genphish.campaign.controller;
 import com.genphish.campaign.dto.request.GenerateTemplateRequest;
 import com.genphish.campaign.dto.response.PhishingTemplateResponse;
 import com.genphish.campaign.service.PhishingTemplateService;
+import com.genphish.campaign.service.ReferenceImageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -20,6 +24,7 @@ import java.util.UUID;
 public class PhishingTemplateController {
 
     private final PhishingTemplateService phishingTemplateService;
+    private final ReferenceImageService referenceImageService;
 
     // POST /api/v1/companies/{companyId}/templates/generate
     @PostMapping("/generate")
@@ -30,6 +35,16 @@ public class PhishingTemplateController {
         PhishingTemplateResponse response = phishingTemplateService.generateAiTemplate(companyId, request);
         log.info("Started generating AI template: {} for company: {}", response.getId(), companyId);
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED); // HTTP 202 Accepted because generation is async
+    }
+
+    // POST /api/v1/companies/{companyId}/templates/upload-reference
+    @PostMapping(value = "/upload-reference", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, String>> uploadReferenceImage(
+            @PathVariable UUID companyId,
+            @RequestParam("file") MultipartFile file) {
+        log.info("Uploading reference image for company: {}", companyId);
+        String url = referenceImageService.store(companyId, file);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("referenceImageUrl", url));
     }
 
     // GET /api/v1/companies/{companyId}/templates

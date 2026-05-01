@@ -6,6 +6,7 @@ import com.genphish.campaign.entity.Employee;
 import com.genphish.campaign.entity.PhishingTemplate;
 import com.genphish.campaign.entity.enums.CampaignStatus;
 import com.genphish.campaign.entity.enums.TargetingType;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 import com.genphish.campaign.messaging.event.EmailDeliveryEvent;
 import com.genphish.campaign.repository.CampaignRepository;
 import com.genphish.campaign.repository.EmployeeRepository;
@@ -115,5 +116,40 @@ class EmailDeliveryProducerTest {
         assertEquals(CampaignStatus.FAILED, campaign.getStatus());
         verify(campaignRepository).save(campaign);
         verifyNoInteractions(kafkaTemplate);
+    }
+
+    @Test
+    void sendDeliveryRequest_OAuthConsent_UsesTargetUrlWithState() {
+        Employee emp = Employee.builder()
+                .id(UUID.randomUUID())
+                .firstName("Jane")
+                .lastName("Doe")
+                .email("jane@example.com")
+                .build();
+
+        PhishingTemplate template = PhishingTemplate.builder()
+                .id(templateId)
+                .templateCategory(TemplateCategory.OAUTH_CONSENT)
+                .targetUrl("https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=test-client")
+                .emailSubject("Microsoft consent request")
+                .emailBody("<html>Open this: {{phishing_link}}</html>")
+                .build();
+
+        when(employeeRepository.findAllByCompanyIdAndIsActive(companyId, true))
+                .thenReturn(List.of(emp));
+        when(phishingTemplateRepository.findByIdAndIsActive(templateId, true))
+                .thenReturn(Optional.of(template));
+
+        producer.sendDeliveryRequest(campaign);
+
+        verify(kafkaTemplate).send(
+                eq(KafkaConfig.TOPIC_EMAIL_DELIVERY_QUEUE),
+                eq(campaignId.toString()),
+                eventCaptor.capture()
+        );
+
+        EmailDeliveryEvent sentEvent = eventCaptor.getValue();
+        assertTrue(sentEvent.getEmailBodyHtml().contains("https://login.microsoftonline.com"));
+        assertTrue(sentEvent.getEmailBodyHtml().contains("state="));
     }
 }

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -69,16 +70,20 @@ func (h *TrackingHandler) TrackOpen(c *gin.Context) {
 
 func (h *TrackingHandler) TrackClick(c *gin.Context) {
 	languageCode := extractLanguageCode(c)
+	redirectBase := h.landingURL
+	if isClickOnlyCategory(extractTemplateCategory(c)) {
+		redirectBase = h.awarenessURL
+	}
 
 	ids, err := extractTrackingIDs(c)
 	if err != nil {
 		h.logger.Printf("click tracking skipped: %v", err)
-		c.Redirect(http.StatusFound, appendLanguageQuery(h.landingURL, languageCode))
+		c.Redirect(http.StatusFound, appendLanguageQuery(redirectBase, languageCode))
 		return
 	}
 
 	h.publish(c, ids, models.EventLinkClicked)
-	c.Redirect(http.StatusFound, appendTrackingQuery(h.landingURL, ids, languageCode))
+	c.Redirect(http.StatusFound, appendTrackingQuery(redirectBase, ids, languageCode))
 }
 
 func (h *TrackingHandler) TrackSubmit(c *gin.Context) {
@@ -93,6 +98,40 @@ func (h *TrackingHandler) TrackSubmit(c *gin.Context) {
 
 	// Intentionally ignores credential fields by design. Only event telemetry is emitted.
 	h.publish(c, ids, models.EventCredentialsSubmitted)
+	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode))
+}
+
+func (h *TrackingHandler) TrackDownload(c *gin.Context) {
+	languageCode := extractLanguageCode(c)
+
+	ids, err := extractTrackingIDs(c)
+	if err != nil {
+		h.logger.Printf("download tracking skipped: %v", err)
+		c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
+		return
+	}
+
+	h.publish(c, ids, models.EventDownloadTriggered)
+	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode))
+}
+
+func (h *TrackingHandler) TrackOAuthCallback(c *gin.Context) {
+	languageCode := extractLanguageCode(c)
+
+	ids, stateLanguageCode, err := extractTrackingIDsFromOAuthState(c)
+	if err == nil && stateLanguageCode != "" {
+		languageCode = stateLanguageCode
+	}
+	if err != nil {
+		ids, err = extractTrackingIDs(c)
+		if err != nil {
+			h.logger.Printf("oauth callback tracking skipped: %v", err)
+			c.Redirect(http.StatusFound, appendLanguageQuery(h.awarenessURL, languageCode))
+			return
+		}
+	}
+
+	h.publish(c, ids, models.EventConsentGranted)
 	c.Redirect(http.StatusFound, appendTrackingQuery(h.awarenessURL, ids, languageCode))
 }
 
@@ -208,6 +247,10 @@ func extractLanguageCode(c *gin.Context) string {
 		c.Query("language"),
 		c.Query("languageCode"),
 	)
+	return normalizeLanguageCode(raw)
+}
+
+func normalizeLanguageCode(raw string) string {
 	if raw == "" {
 		return "TR"
 	}
@@ -220,6 +263,62 @@ func extractLanguageCode(c *gin.Context) string {
 		return "TR"
 	}
 	return "TR"
+}
+
+func extractTemplateCategory(c *gin.Context) string {
+	return strings.ToUpper(strings.TrimSpace(firstNonEmpty(
+		c.Query("tc"),
+		c.Query("templateCategory"),
+		c.Query("category"),
+	)))
+}
+
+func isClickOnlyCategory(value string) bool {
+	return value == "CLICK_ONLY"
+}
+
+func extractTrackingIDsFromOAuthState(c *gin.Context) (trackingIDs, string, error) {
+	rawState := strings.TrimSpace(c.Query("state"))
+	if rawState == "" {
+		return trackingIDs{}, "", errors.New("missing oauth state")
+	}
+
+	decoded, err := base64.RawURLEncoding.DecodeString(rawState)
+	if err != nil {
+		return trackingIDs{}, "", fmt.Errorf("invalid oauth state encoding: %w", err)
+	}
+
+	values, err := url.ParseQuery(string(decoded))
+	if err != nil {
+		return trackingIDs{}, "", fmt.Errorf("invalid oauth state payload: %w", err)
+	}
+
+	campaignRaw := values.Get("c")
+	employeeRaw := values.Get("e")
+	companyRaw := values.Get("co")
+	if campaignRaw == "" || employeeRaw == "" || companyRaw == "" {
+		return trackingIDs{}, "", errors.New("oauth state is missing required identifiers")
+	}
+
+	campaignID, err := uuid.Parse(campaignRaw)
+	if err != nil {
+		return trackingIDs{}, "", fmt.Errorf("invalid campaign id in oauth state: %w", err)
+	}
+	employeeID, err := uuid.Parse(employeeRaw)
+	if err != nil {
+		return trackingIDs{}, "", fmt.Errorf("invalid employee id in oauth state: %w", err)
+	}
+	companyID, err := uuid.Parse(companyRaw)
+	if err != nil {
+		return trackingIDs{}, "", fmt.Errorf("invalid company id in oauth state: %w", err)
+	}
+
+	languageCode := normalizeLanguageCode(values.Get("lang"))
+	return trackingIDs{
+		campaignID: campaignID,
+		employeeID: employeeID,
+		companyID:  companyID,
+	}, languageCode, nil
 }
 
 func firstNonEmpty(values ...string) string {

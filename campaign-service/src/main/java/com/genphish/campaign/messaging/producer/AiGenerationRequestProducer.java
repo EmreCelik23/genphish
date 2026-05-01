@@ -35,6 +35,8 @@ public class AiGenerationRequestProducer {
                 .companyId(template.getCompanyId())
                 .prompt(template.getPrompt())
                 .targetUrl(template.getTargetUrl())
+                .referenceImageUrl(template.getReferenceImageUrl())
+                .templateCategory(template.getTemplateCategory())
                 .difficultyLevel(difficultyLevel)
                 .languageCode(languageCode)
                 .provider(provider)

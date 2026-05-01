@@ -8,9 +8,15 @@ It consumes campaign generation jobs from Kafka, produces phishing simulation as
 - Consumes `ai_generation_requests` events from Kafka
 - Generates:
   - phishing email subject + HTML body
-  - Next.js login-like landing page code
+  - category-aware Next.js landing/page code
 - Stores generated template documents in MongoDB
 - Publishes `ai_generation_responses` events with `mongoTemplateId`
+- Supports category-specific flows:
+  - `CREDENTIAL_HARVESTING`: login form -> `/track/submit`
+  - `MALWARE_DELIVERY`: download CTA -> `/track/download`
+  - `CLICK_ONLY`: no landing page required
+  - `OAUTH_CONSENT`: no landing page required
+- Supports optional multimodal generation with `referenceImageUrl` (OpenAI provider path)
 - Exposes API fallback for campaign service cache misses:
   - `GET /api/templates/{template_id}`
   - `POST /api/templates/{template_id}/clone` (creates independent copy for campaign cloning)
@@ -32,10 +38,12 @@ Expected payload (camelCase):
 
 ```json
 {
-  "campaignId": "uuid",
+  "templateId": "uuid",
   "companyId": "uuid",
   "prompt": "string",
   "targetUrl": "string",
+  "referenceImageUrl": "string-or-null",
+  "templateCategory": "CREDENTIAL_HARVESTING|CLICK_ONLY|MALWARE_DELIVERY|OAUTH_CONSENT",
   "difficultyLevel": "AMATEUR|PROFESSIONAL (optional, default PROFESSIONAL)",
   "regenerationScope": "ALL|ONLY_EMAIL|ONLY_LANDING_PAGE",
   "existingMongoTemplateId": "optional-string",
@@ -54,7 +62,7 @@ Produced payload (camelCase):
 
 ```json
 {
-  "campaignId": "uuid",
+  "templateId": "uuid",
   "mongoTemplateId": "string-or-null",
   "status": "SUCCESS|FAILED",
   "errorMessage": "string-or-null",
@@ -80,7 +88,7 @@ This is intentionally aligned with `campaign-service` `EmailDeliveryProducer` pa
 
 ```json
 {
-  "campaignId": "uuid",
+  "templateId": "uuid",
   "companyId": "uuid"
 }
 ```
@@ -151,6 +159,17 @@ docker run --rm -p 5000:5000 --env-file .env genphish-ai-engine:prod
 - `GET /api/templates/{template_id}` (campaign fallback endpoint)
 - `POST /api/templates/{template_id}/clone` (duplicate existing template for a new campaign)
 
+`POST /api/generate` success response shape:
+
+```json
+{
+  "templateId": "uuid",
+  "mongoTemplateId": "mongo-object-id",
+  "status": "SUCCESS",
+  "createdAt": "timestamp"
+}
+```
+
 ## Tests
 
 ```bash
@@ -187,4 +206,5 @@ Request-level overrides are also supported with `provider` and `model` fields.
 - Set `KAFKA_ENABLED=false` for local API-only development without Kafka.
 - Generation timeout is controlled by `GENERATION_TIMEOUT_SECONDS` (default `15`).
 - Strict behavior is default: timeout/error -> `FAILED`. Enable fallback per request with `allowFallbackTemplate=true`.
+- Multimodal image-to-code flow uses `referenceImageUrl`; non-OpenAI providers currently continue with text-first flow.
 - For production, configure network-level authentication for Kafka and MongoDB.

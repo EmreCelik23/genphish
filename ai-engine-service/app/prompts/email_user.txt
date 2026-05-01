@@ -3,6 +3,7 @@ Create a phishing-simulation training email based on:
 - Difficulty: {difficulty_level}
 - Scenario prompt: {prompt}
 - Optional target URL context: {target_url}
+- Template category: {template_category}
 - Target language: {language_label}
 - Language rule: {language_instruction}
 

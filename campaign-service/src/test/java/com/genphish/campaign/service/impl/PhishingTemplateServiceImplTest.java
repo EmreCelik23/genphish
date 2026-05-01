@@ -6,6 +6,7 @@ import com.genphish.campaign.dto.request.UpdateTemplateRequest;
 import com.genphish.campaign.dto.response.PhishingTemplateResponse;
 import com.genphish.campaign.entity.PhishingTemplate;
 import com.genphish.campaign.entity.enums.RegenerationScope;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 import com.genphish.campaign.entity.enums.TemplateStatus;
 import com.genphish.campaign.messaging.producer.AiGenerationRequestProducer;
 import com.genphish.campaign.repository.PhishingTemplateRepository;
@@ -60,6 +61,7 @@ class PhishingTemplateServiceImplTest {
         request.setName("New AI Template");
         request.setPrompt("Generate password reset");
         request.setCategory("Test");
+        request.setTemplateCategory(TemplateCategory.CREDENTIAL_HARVESTING);
 
         PhishingTemplateResponse response = phishingTemplateService.generateAiTemplate(companyId, request);
 

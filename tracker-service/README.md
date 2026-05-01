@@ -18,6 +18,8 @@ This service is intentionally narrow and optimized for those goals.
 - Pixel-open tracking (`EMAIL_OPENED`)
 - Link-click tracking (`LINK_CLICKED`)
 - Credential-submit event tracking (`CREDENTIALS_SUBMITTED`)
+- Download-trigger simulation tracking (`DOWNLOAD_TRIGGERED`)
+- OAuth consent callback tracking (`CONSENT_GRANTED`)
 - Kafka event publishing with low-latency batching
 - Health endpoint for orchestration probes
 - Graceful shutdown with timeout-based draining
@@ -26,6 +28,7 @@ This service is intentionally narrow and optimized for those goals.
 
 `/track/submit` does not parse, store, or forward credential fields.
 Only telemetry metadata is emitted. Credential fields are never read or stored.
+`/track/download` does not download or serve any real file; it only records simulated user action telemetry.
 
 ## API surface
 
@@ -37,6 +40,8 @@ Base URL: `http://localhost:8081`
 | `GET` | `/track/open` | Publishes `EMAIL_OPENED`, returns transparent `1x1 GIF` |
 | `GET` | `/track/click` | Publishes `LINK_CLICKED`, redirects to landing page |
 | `POST` | `/track/submit` | Publishes `CREDENTIALS_SUBMITTED`, redirects to awareness page |
+| `GET` / `POST` | `/track/download` | Publishes `DOWNLOAD_TRIGGERED`, redirects to awareness page |
+| `GET` | `/oauth/callback` | Publishes `CONSENT_GRANTED`, redirects to awareness page |
 
 ## Tracking ID query parameters
 
@@ -46,6 +51,12 @@ Accepted aliases:
 - Employee id: `e`, `employee_id`, `employeeId`, `user_id`, `userId`
 - Company id: `co`, `company_id`, `companyId`
 - Language (`TR` default): `lang`, `language`, `languageCode`
+- Template category hint: `tc`, `templateCategory`, `category`
+
+Flow-specific notes:
+
+- `tc=CLICK_ONLY` on `/track/click` redirects directly to awareness flow after click telemetry.
+- `/oauth/callback` supports encoded OAuth `state` payload (`c,e,co,lang`) and falls back to query ids when needed.
 
 If ids are missing or invalid, the service still returns safe fallback responses (pixel or redirect) and avoids crashing request flow.
 Redirect URLs always include normalized `lang=TR|EN` (`TR` is default if omitted/unknown).
@@ -61,7 +72,7 @@ Payload:
   "campaignId": "uuid",
   "employeeId": "uuid",
   "companyId": "uuid",
-  "eventType": "EMAIL_OPENED | LINK_CLICKED | CREDENTIALS_SUBMITTED",
+  "eventType": "EMAIL_OPENED | LINK_CLICKED | CREDENTIALS_SUBMITTED | DOWNLOAD_TRIGGERED | CONSENT_GRANTED",
   "timestamp": "2026-04-29T10:00:00Z",
   "userAgent": "optional-string",
   "ipAddress": "optional-string"

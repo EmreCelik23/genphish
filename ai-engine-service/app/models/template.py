@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.events import LanguageCode
+from app.models.events import LanguageCode, TemplateCategory
 
 
 class TemplateDocument(BaseModel):
@@ -15,6 +15,11 @@ class TemplateDocument(BaseModel):
     company_id: UUID = Field(alias="companyId")
     prompt: str = ""
     target_url: str = ""
+    reference_image_url: str | None = Field(default=None, alias="referenceImageUrl")
+    template_category: TemplateCategory = Field(
+        default=TemplateCategory.CREDENTIAL_HARVESTING,
+        alias="templateCategory",
+    )
     difficulty_level: str = Field(default="PROFESSIONAL", alias="difficultyLevel")
     language_code: LanguageCode = Field(default=LanguageCode.TR, alias="languageCode")
 

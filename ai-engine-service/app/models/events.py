@@ -21,6 +21,13 @@ class LanguageCode(StrEnum):
     EN = "EN"
 
 
+class TemplateCategory(str, Enum):
+    CREDENTIAL_HARVESTING = "CREDENTIAL_HARVESTING"
+    CLICK_ONLY = "CLICK_ONLY"
+    MALWARE_DELIVERY = "MALWARE_DELIVERY"
+    OAUTH_CONSENT = "OAUTH_CONSENT"
+
+
 def normalize_language_code(value: str | LanguageCode | None) -> LanguageCode:
     if isinstance(value, LanguageCode):
         return value
@@ -56,6 +63,20 @@ def normalize_optional_text(value: str | None) -> str | None:
     return normalized or None
 
 
+def normalize_template_category(value: str | TemplateCategory | None) -> TemplateCategory:
+    if isinstance(value, TemplateCategory):
+        return value
+    if value is None:
+        return TemplateCategory.CREDENTIAL_HARVESTING
+    normalized = str(value).strip().upper()
+    if not normalized:
+        return TemplateCategory.CREDENTIAL_HARVESTING
+    try:
+        return TemplateCategory(normalized)
+    except ValueError:
+        return TemplateCategory.CREDENTIAL_HARVESTING
+
+
 class AiGenerationRequestEvent(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -63,6 +84,8 @@ class AiGenerationRequestEvent(BaseModel):
     company_id: UUID = Field(alias="companyId")
     prompt: str | None = None
     target_url: str | None = Field(default=None, alias="targetUrl")
+    reference_image_url: str | None = Field(default=None, alias="referenceImageUrl")
+    template_category: TemplateCategory = Field(default=TemplateCategory.CREDENTIAL_HARVESTING, alias="templateCategory")
     difficulty_level: str = Field(default="PROFESSIONAL", alias="difficultyLevel")
     regeneration_scope: RegenerationScope = Field(default=RegenerationScope.ALL, alias="regenerationScope")
     existing_mongo_template_id: str | None = Field(default=None, alias="existingMongoTemplateId")
@@ -98,7 +121,12 @@ class AiGenerationRequestEvent(BaseModel):
     def normalize_language_code(cls, value: str | LanguageCode | None) -> LanguageCode:
         return normalize_language_code(value)
 
-    @field_validator("provider", "model_name", mode="before")
+    @field_validator("template_category", mode="before")
+    @classmethod
+    def normalize_template_category(cls, value: str | TemplateCategory | None) -> TemplateCategory:
+        return normalize_template_category(value)
+
+    @field_validator("provider", "model_name", "reference_image_url", mode="before")
     @classmethod
     def normalize_optional_text(cls, value: str | None) -> str | None:
         return normalize_optional_text(value)
@@ -121,6 +149,8 @@ class ManualGenerateRequest(BaseModel):
     company_id: UUID = Field(alias="companyId")
     prompt: str
     target_url: str | None = Field(default=None, alias="targetUrl")
+    reference_image_url: str | None = Field(default=None, alias="referenceImageUrl")
+    template_category: TemplateCategory = Field(default=TemplateCategory.CREDENTIAL_HARVESTING, alias="templateCategory")
     difficulty_level: str = Field(default="PROFESSIONAL", alias="difficultyLevel")
     regeneration_scope: RegenerationScope = Field(default=RegenerationScope.ALL, alias="regenerationScope")
     existing_mongo_template_id: str | None = Field(default=None, alias="existingMongoTemplateId")
@@ -156,7 +186,12 @@ class ManualGenerateRequest(BaseModel):
     def normalize_manual_language_code(cls, value: str | LanguageCode | None) -> LanguageCode:
         return normalize_language_code(value)
 
-    @field_validator("provider", "model_name", mode="before")
+    @field_validator("template_category", mode="before")
+    @classmethod
+    def normalize_manual_template_category(cls, value: str | TemplateCategory | None) -> TemplateCategory:
+        return normalize_template_category(value)
+
+    @field_validator("provider", "model_name", "reference_image_url", mode="before")
     @classmethod
     def normalize_manual_optional_text(cls, value: str | None) -> str | None:
         return normalize_optional_text(value)
@@ -170,8 +205,8 @@ class CloneTemplateRequest(BaseModel):
 
 
 class TemplateCreatedResponse(BaseModel):
-    template_id: str = Field(alias="templateId")
     template_id: UUID = Field(alias="templateId")
+    mongo_template_id: str | None = Field(default=None, alias="mongoTemplateId")
     status: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), alias="createdAt")
 

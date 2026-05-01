@@ -30,6 +30,9 @@ public class DashboardResponse {
         private long emailsOpened;
         private long linksClicked;
         private long credentialsSubmitted;
+        private long downloadTriggered;
+        private long consentGranted;
+        private long actionsTaken;
     }
 
     @Data
@@ -42,6 +45,9 @@ public class DashboardResponse {
         private long emailsOpened;
         private long linksClicked;
         private long credentialsSubmitted;
+        private long downloadTriggered;
+        private long consentGranted;
+        private long actionsTaken;
         private double successRate; // % who did NOT fall for it
     }
 }

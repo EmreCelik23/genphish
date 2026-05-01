@@ -3,6 +3,7 @@ package com.genphish.campaign.service.impl;
 import com.genphish.campaign.dto.request.GenerateTemplateRequest;
 import com.genphish.campaign.dto.response.PhishingTemplateResponse;
 import com.genphish.campaign.entity.PhishingTemplate;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 import com.genphish.campaign.entity.enums.TemplateStatus;
 import com.genphish.campaign.entity.enums.TemplateType;
 import com.genphish.campaign.exception.ResourceNotFoundException;
@@ -56,17 +57,25 @@ public class PhishingTemplateServiceImpl implements PhishingTemplateService {
     @Transactional
     public PhishingTemplateResponse generateAiTemplate(UUID companyId, GenerateTemplateRequest request) {
         log.info("Generating AI Phishing Template: {} for company: {}", request.getName(), companyId);
+        String displayCategory = (request.getCategory() == null || request.getCategory().isBlank())
+                ? "AI Generated"
+                : request.getCategory().trim();
+        TemplateCategory templateCategory = request.getTemplateCategory() != null
+                ? request.getTemplateCategory()
+                : TemplateCategory.CREDENTIAL_HARVESTING;
 
         PhishingTemplate template = PhishingTemplate.builder()
                 .companyId(companyId)
                 .name(request.getName())
-                .category(request.getCategory())
+                .category(displayCategory)
+                .templateCategory(templateCategory)
                 .type(TemplateType.AI_GENERATED)
                 .status(TemplateStatus.GENERATING)
                 .prompt(request.getPrompt())
                 .difficultyLevel(request.getDifficultyLevel())
                 .languageCode(request.getLanguageCode())
                 .targetUrl(request.getTargetUrl())
+                .referenceImageUrl(normalizeOptionalText(request.getReferenceImageUrl()))
                 .fallbackContentUsed(false)
                 .isActive(true)
                 .build();
@@ -98,6 +107,15 @@ public class PhishingTemplateServiceImpl implements PhishingTemplateService {
         template.setName(request.getName());
         template.setEmailSubject(request.getEmailSubject());
         template.setEmailBody(request.getEmailBody());
+        if (request.getCategory() != null && !request.getCategory().isBlank()) {
+            template.setCategory(request.getCategory().trim());
+        }
+        if (request.getTemplateCategory() != null) {
+            template.setTemplateCategory(request.getTemplateCategory());
+        }
+        if (request.getReferenceImageUrl() != null) {
+            template.setReferenceImageUrl(normalizeOptionalText(request.getReferenceImageUrl()));
+        }
         
         if (request.getLandingPageHtml() != null && !request.getLandingPageHtml().isBlank()) {
             template.setLandingPageHtml(request.getLandingPageHtml());
@@ -129,6 +147,12 @@ public class PhishingTemplateServiceImpl implements PhishingTemplateService {
         }
 
         template.setPrompt(request.getPrompt());
+        if (request.getTemplateCategory() != null) {
+            template.setTemplateCategory(request.getTemplateCategory());
+        }
+        if (request.getReferenceImageUrl() != null) {
+            template.setReferenceImageUrl(normalizeOptionalText(request.getReferenceImageUrl()));
+        }
         template.setStatus(TemplateStatus.GENERATING);
         phishingTemplateRepository.save(template);
 
@@ -175,6 +199,7 @@ public class PhishingTemplateServiceImpl implements PhishingTemplateService {
                 .companyId(template.getCompanyId())
                 .name(template.getName())
                 .category(template.getCategory())
+                .templateCategory(template.getTemplateCategory())
                 .type(template.getType())
                 .status(template.getStatus())
                 .difficultyLevel(template.getDifficultyLevel())
@@ -184,7 +209,16 @@ public class PhishingTemplateServiceImpl implements PhishingTemplateService {
                 .landingPageHtml(template.getLandingPageHtml())
                 .prompt(template.getPrompt())
                 .targetUrl(template.getTargetUrl())
+                .referenceImageUrl(template.getReferenceImageUrl())
                 .fallbackContentUsed(template.isFallbackContentUsed())
                 .build();
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

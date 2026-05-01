@@ -26,6 +26,8 @@ public class TrackingEventConsumer {
     private static final double RISK_INCREMENT_EMAIL_OPENED = 5.0;
     private static final double RISK_INCREMENT_LINK_CLICKED = 15.0;
     private static final double RISK_INCREMENT_CREDENTIALS = 30.0;
+    private static final double RISK_INCREMENT_DOWNLOAD_TRIGGERED = 35.0;
+    private static final double RISK_INCREMENT_CONSENT_GRANTED = 40.0;
 
     // Listens for tracking events from Go Tracker service
     @KafkaListener(
@@ -72,10 +74,16 @@ public class TrackingEventConsumer {
                 case EMAIL_OPENED -> RISK_INCREMENT_EMAIL_OPENED;
                 case LINK_CLICKED -> RISK_INCREMENT_LINK_CLICKED;
                 case CREDENTIALS_SUBMITTED -> RISK_INCREMENT_CREDENTIALS;
+                case DOWNLOAD_TRIGGERED -> RISK_INCREMENT_DOWNLOAD_TRIGGERED;
+                case CONSENT_GRANTED -> RISK_INCREMENT_CONSENT_GRANTED;
             };
 
             // If link was clicked, also mark email as opened (logical inference)
-            if ((eventType == TrackingEventType.LINK_CLICKED || eventType == TrackingEventType.CREDENTIALS_SUBMITTED) && !trackingEventRepository.existsByCampaignIdAndEmployeeIdAndEventType(
+            if ((eventType == TrackingEventType.LINK_CLICKED
+                    || eventType == TrackingEventType.CREDENTIALS_SUBMITTED
+                    || eventType == TrackingEventType.DOWNLOAD_TRIGGERED
+                    || eventType == TrackingEventType.CONSENT_GRANTED)
+                    && !trackingEventRepository.existsByCampaignIdAndEmployeeIdAndEventType(
                         message.getCampaignId(), message.getEmployeeId(), TrackingEventType.EMAIL_OPENED)) {
                     TrackingEvent impliedOpen = TrackingEvent.builder()
                             .campaignId(message.getCampaignId())

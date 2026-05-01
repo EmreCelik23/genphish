@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"log"
 	"net/http"
@@ -222,6 +223,98 @@ func TestTrackSubmitPublishesAndRedirectsToAwareness(t *testing.T) {
 	}
 	if len(publisher.events) != 1 || publisher.events[0].EventType != models.EventCredentialsSubmitted {
 		t.Fatalf("expected CREDENTIALS_SUBMITTED event to be published")
+	}
+}
+
+func TestTrackClickClickOnlyRedirectsToAwareness(t *testing.T) {
+	publisher := &mockEventPublisher{}
+	router := newTestRouter(publisher)
+
+	campaignID := uuid.New()
+	employeeID := uuid.New()
+	companyID := uuid.New()
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/track/click?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String()+"&tc=CLICK_ONLY",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	location := rec.Header().Get("Location")
+	if !strings.HasPrefix(location, "http://localhost:3000/awareness?") {
+		t.Fatalf("expected redirect to awareness, got %s", location)
+	}
+	if len(publisher.events) != 1 || publisher.events[0].EventType != models.EventLinkClicked {
+		t.Fatalf("expected LINK_CLICKED event to be published")
+	}
+}
+
+func TestTrackDownloadPublishesAndRedirectsToAwareness(t *testing.T) {
+	publisher := &mockEventPublisher{}
+	router := newTestRouter(publisher)
+
+	campaignID := uuid.New()
+	employeeID := uuid.New()
+	companyID := uuid.New()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/track/download?c="+campaignID.String()+"&e="+employeeID.String()+"&co="+companyID.String(),
+		nil,
+	)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	location := rec.Header().Get("Location")
+	if !strings.HasPrefix(location, "http://localhost:3000/awareness?") {
+		t.Fatalf("expected redirect to awareness, got %s", location)
+	}
+	if len(publisher.events) != 1 || publisher.events[0].EventType != models.EventDownloadTriggered {
+		t.Fatalf("expected DOWNLOAD_TRIGGERED event to be published")
+	}
+}
+
+func TestTrackOAuthCallbackPublishesConsentGranted(t *testing.T) {
+	publisher := &mockEventPublisher{}
+	router := newTestRouter(publisher)
+
+	campaignID := uuid.New()
+	employeeID := uuid.New()
+	companyID := uuid.New()
+	statePayload := "c=" + campaignID.String() + "&e=" + employeeID.String() + "&co=" + companyID.String() + "&lang=en-US"
+	state := base64.RawURLEncoding.EncodeToString([]byte(statePayload))
+
+	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?state="+url.QueryEscape(state), nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	location := rec.Header().Get("Location")
+	parsed, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("expected valid redirect URL, got parse error: %v", err)
+	}
+	if parsed.Path != "/awareness" {
+		t.Fatalf("expected redirect to awareness, got %s", location)
+	}
+	if parsed.Query().Get("lang") != "EN" {
+		t.Fatalf("expected lang=EN, got %s", parsed.Query().Get("lang"))
+	}
+	if len(publisher.events) != 1 || publisher.events[0].EventType != models.EventConsentGranted {
+		t.Fatalf("expected CONSENT_GRANTED event to be published")
 	}
 }
 

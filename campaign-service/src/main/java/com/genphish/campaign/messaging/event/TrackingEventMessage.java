@@ -18,7 +18,7 @@ public class TrackingEventMessage {
     private UUID campaignId;
     private UUID employeeId;
     private UUID companyId;
-    private String eventType;          // EMAIL_OPENED, LINK_CLICKED, CREDENTIALS_SUBMITTED
+    private String eventType;          // EMAIL_OPENED, LINK_CLICKED, CREDENTIALS_SUBMITTED, DOWNLOAD_TRIGGERED, CONSENT_GRANTED
     private Instant timestamp;
     private String userAgent;
     private String ipAddress;

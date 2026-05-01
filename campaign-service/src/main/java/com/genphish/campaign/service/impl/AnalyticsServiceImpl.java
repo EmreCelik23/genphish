@@ -49,7 +49,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
         // Overall phishing rate: % of active employees who submitted credentials at least once
         long employeesPhished = activeEvents.stream()
-                .filter(e -> e.getEventType() == TrackingEventType.CREDENTIALS_SUBMITTED)
+                .filter(e -> isRiskActionEvent(e.getEventType()))
                 .map(TrackingEvent::getEmployeeId)
                 .distinct()
                 .count();
@@ -76,10 +76,15 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                             .filter(e -> e.getEventType() == TrackingEventType.LINK_CLICKED).count();
                     long submitted = deptEvents.stream()
                             .filter(e -> e.getEventType() == TrackingEventType.CREDENTIALS_SUBMITTED).count();
+                    long downloadTriggered = deptEvents.stream()
+                            .filter(e -> e.getEventType() == TrackingEventType.DOWNLOAD_TRIGGERED).count();
+                    long consentGranted = deptEvents.stream()
+                            .filter(e -> e.getEventType() == TrackingEventType.CONSENT_GRANTED).count();
+                    long actionsTaken = deptEvents.stream()
+                            .filter(e -> isRiskActionEvent(e.getEventType())).count();
 
                     long deptPhished = deptEvents.stream()
-                            .filter(e -> e.getEventType() == TrackingEventType.CREDENTIALS_SUBMITTED
-                                    || e.getEventType() == TrackingEventType.LINK_CLICKED)
+                            .filter(e -> isRiskActionEvent(e.getEventType()))
                             .map(TrackingEvent::getEmployeeId)
                             .distinct()
                             .count();
@@ -94,6 +99,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                             .emailsOpened(opened)
                             .linksClicked(clicked)
                             .credentialsSubmitted(submitted)
+                            .downloadTriggered(downloadTriggered)
+                            .consentGranted(consentGranted)
+                            .actionsTaken(actionsTaken)
                             .build();
                 })
                 .toList();
@@ -114,12 +122,18 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                             .filter(e -> e.getEventType() == TrackingEventType.LINK_CLICKED).count();
                     long submitted = campaignEvents.stream()
                             .filter(e -> e.getEventType() == TrackingEventType.CREDENTIALS_SUBMITTED).count();
+                    long downloadTriggered = campaignEvents.stream()
+                            .filter(e -> e.getEventType() == TrackingEventType.DOWNLOAD_TRIGGERED).count();
+                    long consentGranted = campaignEvents.stream()
+                            .filter(e -> e.getEventType() == TrackingEventType.CONSENT_GRANTED).count();
+                    long actionsTaken = campaignEvents.stream()
+                            .filter(e -> isRiskActionEvent(e.getEventType())).count();
 
                     // Real target count from campaign launch
                     long targetCount = campaign.getTargetCount();
 
                     long safeEmployees = targetCount - campaignEvents.stream()
-                            .filter(e -> e.getEventType() == TrackingEventType.CREDENTIALS_SUBMITTED)
+                            .filter(e -> isRiskActionEvent(e.getEventType()))
                             .map(TrackingEvent::getEmployeeId)
                             .distinct()
                             .count();
@@ -134,6 +148,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                             .emailsOpened(opened)
                             .linksClicked(clicked)
                             .credentialsSubmitted(submitted)
+                            .downloadTriggered(downloadTriggered)
+                            .consentGranted(consentGranted)
+                            .actionsTaken(actionsTaken)
                             .successRate(successRate)
                             .build();
                 })
@@ -165,12 +182,16 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         long opened = events.stream().filter(e -> e.getEventType() == TrackingEventType.EMAIL_OPENED).count();
         long clicked = events.stream().filter(e -> e.getEventType() == TrackingEventType.LINK_CLICKED).count();
         long submitted = events.stream().filter(e -> e.getEventType() == TrackingEventType.CREDENTIALS_SUBMITTED).count();
+        long downloadTriggered = events.stream().filter(e -> e.getEventType() == TrackingEventType.DOWNLOAD_TRIGGERED).count();
+        long consentGranted = events.stream().filter(e -> e.getEventType() == TrackingEventType.CONSENT_GRANTED).count();
+        long actionsTaken = events.stream().filter(e -> isRiskActionEvent(e.getEventType())).count();
 
         long targetCount = campaign.getTargetCount();
         
         double openRate = targetCount > 0 ? (double) opened / targetCount * 100 : 0;
         double clickRate = targetCount > 0 ? (double) clicked / targetCount * 100 : 0;
         double submitRate = targetCount > 0 ? (double) submitted / targetCount * 100 : 0;
+        double actionRate = targetCount > 0 ? (double) actionsTaken / targetCount * 100 : 0;
 
         return CampaignFunnelResponse.builder()
                 .campaignId(campaignId)
@@ -179,9 +200,13 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 .emailsOpened(opened)
                 .linksClicked(clicked)
                 .credentialsSubmitted(submitted)
+                .downloadTriggered(downloadTriggered)
+                .consentGranted(consentGranted)
+                .actionsTaken(actionsTaken)
                 .openRate(openRate)
                 .clickRate(clickRate)
                 .submitRate(submitRate)
+                .actionRate(actionRate)
                 .build();
     }
 
@@ -216,5 +241,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                             .build();
                 })
                 .toList();
+    }
+
+    private boolean isRiskActionEvent(TrackingEventType eventType) {
+        return eventType == TrackingEventType.LINK_CLICKED
+                || eventType == TrackingEventType.CREDENTIALS_SUBMITTED
+                || eventType == TrackingEventType.DOWNLOAD_TRIGGERED
+                || eventType == TrackingEventType.CONSENT_GRANTED;
     }
 }

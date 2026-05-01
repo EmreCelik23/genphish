@@ -2,6 +2,7 @@ package com.genphish.campaign.entity;
 
 import com.genphish.campaign.entity.enums.DifficultyLevel;
 import com.genphish.campaign.entity.enums.LanguageCode;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 import com.genphish.campaign.entity.enums.TemplateStatus;
 import com.genphish.campaign.entity.enums.TemplateType;
 import jakarta.persistence.*;
@@ -31,6 +32,11 @@ public class PhishingTemplate {
 
     @Column(nullable = false)
     private String category; // e.g., "IT", "HR", "Finance", "AI Generated"
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "template_category", nullable = false)
+    @Builder.Default
+    private TemplateCategory templateCategory = TemplateCategory.CREDENTIAL_HARVESTING;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "template_type", nullable = false)
@@ -68,6 +74,9 @@ public class PhishingTemplate {
 
     @Column(name = "target_url")
     private String targetUrl; 
+
+    @Column(name = "reference_image_url")
+    private String referenceImageUrl;
 
     @Column(name = "mongo_template_id")
     private String mongoTemplateId; 

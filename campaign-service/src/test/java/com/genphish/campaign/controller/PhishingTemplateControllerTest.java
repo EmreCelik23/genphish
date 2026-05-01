@@ -6,14 +6,17 @@ import com.genphish.campaign.dto.request.RegenerateTemplateRequest;
 import com.genphish.campaign.dto.request.UpdateTemplateRequest;
 import com.genphish.campaign.dto.response.PhishingTemplateResponse;
 import com.genphish.campaign.entity.enums.RegenerationScope;
+import com.genphish.campaign.entity.enums.TemplateCategory;
 import com.genphish.campaign.entity.enums.TemplateStatus;
 import com.genphish.campaign.service.PhishingTemplateService;
+import com.genphish.campaign.service.ReferenceImageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -34,6 +37,9 @@ class PhishingTemplateControllerTest {
     @Mock
     private PhishingTemplateService phishingTemplateService;
 
+    @Mock
+    private ReferenceImageService referenceImageService;
+
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
 
@@ -42,7 +48,7 @@ class PhishingTemplateControllerTest {
 
     @BeforeEach
     void setUp() {
-        PhishingTemplateController controller = new PhishingTemplateController(phishingTemplateService);
+        PhishingTemplateController controller = new PhishingTemplateController(phishingTemplateService, referenceImageService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
         objectMapper = new ObjectMapper();
         objectMapper.findAndRegisterModules();
@@ -73,6 +79,7 @@ class PhishingTemplateControllerTest {
         request.setName("New Generated Template");
         request.setCategory("AI");
         request.setPrompt("Some prompt");
+        request.setTemplateCategory(TemplateCategory.CREDENTIAL_HARVESTING);
 
         PhishingTemplateResponse response = PhishingTemplateResponse.builder()
                 .id(templateId)
@@ -138,5 +145,22 @@ class PhishingTemplateControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(phishingTemplateService).deleteTemplate(companyId, templateId);
+    }
+
+    @Test
+    void uploadReferenceImage_ShouldReturnCreatedWithUrl() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "login.png",
+                MediaType.IMAGE_PNG_VALUE,
+                new byte[] {1, 2, 3}
+        );
+        when(referenceImageService.store(companyId, file))
+                .thenReturn("http://localhost:8080/api/v1/reference-images/a.png");
+
+        mockMvc.perform(multipart("/api/v1/companies/{companyId}/templates/upload-reference", companyId)
+                        .file(file))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.referenceImageUrl").value("http://localhost:8080/api/v1/reference-images/a.png"));
     }
 }
