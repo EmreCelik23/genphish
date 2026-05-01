@@ -5,6 +5,7 @@ import com.genphish.campaign.exception.ResourceNotFoundException;
 import com.genphish.campaign.service.ReferenceImageService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -59,6 +60,7 @@ public class ReferenceImageServiceImpl implements ReferenceImageService {
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
 
+    @Autowired
     public ReferenceImageServiceImpl(
             @Value("${app.upload.reference-dir:./uploads/reference-images}") String storageDir,
             @Value("${app.public-base-url:http://localhost:8080}") String publicBaseUrl,

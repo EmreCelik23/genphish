@@ -8,11 +8,7 @@
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
-                <valueMasker class="net.logstash.logback.mask.RegexValueMasker">
-                    <!-- Masks standard email formats: user@domain.com -> ***@***.*** -->
-                    <regex>([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})</regex>
-                    <mask>***@***.***</mask>
-                </valueMasker>
+                <valueMasker class="com.genphish.campaign.logging.EmailValueMasker" />
             </jsonGeneratorDecorator>
         </encoder>
     </appender>

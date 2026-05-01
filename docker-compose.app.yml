@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   campaign-service:
     build:
@@ -17,11 +15,16 @@ services:
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:8088}
       AI_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-genphish-internal-token}
     depends_on:
-      - postgres
-      - redis
-      - kafka
-      - ai-engine-service
-      - tracker-service
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      ai-engine-service:
+        condition: service_started
+      tracker-service:
+        condition: service_started
     expose:
       - "8080"
     networks:
@@ -39,8 +42,11 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SERVICE_AUTH_TOKEN: ${INTERNAL_SERVICE_TOKEN:-genphish-internal-token}
     depends_on:
-      - mongodb
-      - kafka
+      mongodb:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
     expose:
       - "5000"
     networks:
@@ -59,8 +65,10 @@ services:
       REDIS_ENABLED: true
       REDIS_ADDR: redis:6379
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     expose:
       - "8081"
     networks:

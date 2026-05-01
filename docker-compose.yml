@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 1. PostgreSQL: İlişkisel Veritabanı
   postgres:
@@ -43,34 +41,52 @@ services:
     networks:
       - genphish_net
 
-  # 4. Zookeeper: Kafka'nın Yönetim Merkezi
-  zookeeper:
-    image: bitnami/zookeeper:latest
-    container_name: genphish-zookeeper
+  # 4. Kafka: Mesajlaşma ve Kuyruk Sistemi
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: genphish-kafka
     environment:
-      # TODO (SaaS Aşaması): 'yes' yerine 'no' yapılıp SASL kimlik doğrulaması (şifreli giriş) eklenecek.
-      ALLOW_ANONYMOUS_LOGIN: 'yes'
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9094,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     ports:
-      - "2181:2181"
+      - "9092:9092"
+      - "9094:9094"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - genphish_net
 
-  # 5. Kafka: Olay Veriyolu (Event Bus)
-  kafka:
-    image: bitnami/kafka:latest
-    container_name: genphish-kafka
+  kafka-init:
+    image: apache/kafka:3.7.0
+    container_name: genphish-kafka-init
     depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
-      # TODO (SaaS Aşaması): Şifresiz iletişim (PLAINTEXT) kapatılıp SSL/TLS sertifikaları kullanılacak.
-      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092
-      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      # TODO (SaaS Aşaması): 'yes' yerine 'no' yapılacak.
-      ALLOW_PLAINTEXT_LISTENER: 'yes'
-    ports:
-      - "9092:9092"
+      - kafka
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null 2>&1; do
+          echo "waiting for kafka..."
+          sleep 1
+        done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic ai_generation_requests --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic ai_generation_responses --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic tracking_events --partitions 1 --replication-factor 1
+        echo "kafka topics ensured"
     networks:
       - genphish_net
 
