@@ -2,9 +2,11 @@ import { ApiClient } from "@/lib/api/client";
 import {
   CampaignResponse,
   CreateCampaignRequest,
+  CreateEmployeeRequest,
   DashboardResponse,
   EmployeeResponse,
   GenerateTemplateRequest,
+  ImportResultResponse,
   PhishingTemplateResponse,
   RegenerateTemplateRequest,
   ScheduleCampaignRequest,
@@ -39,7 +41,14 @@ export function createApiServices(client: ApiClient, companyId: string) {
       }
     },
     employees: {
-      list: () => client.get<EmployeeResponse[]>(`${companyPrefix}/employees`)
+      list: () => client.get<EmployeeResponse[]>(`${companyPrefix}/employees`),
+      create: (payload: CreateEmployeeRequest) => client.post<EmployeeResponse>(`${companyPrefix}/employees`, payload),
+      import: async (file: File) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        return client.postForm<ImportResultResponse>(`${companyPrefix}/employees/import`, formData);
+      },
+      deactivate: (employeeId: string) => client.delete(`${companyPrefix}/employees/${employeeId}`)
     }
   };
 }

@@ -123,3 +123,17 @@ export type RegenerateTemplateRequest = {
 export type UploadReferenceImageResponse = {
   referenceImageUrl: string;
 };
+
+export type CreateEmployeeRequest = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  department: string;
+};
+
+export type ImportResultResponse = {
+  totalRows: number;
+  imported: number;
+  duplicates: number;
+  failed: number;
+};
