@@ -69,8 +69,14 @@ temp/
 **/node_modules/
 **/.next/
 **/.nuxt/
+**/.vercel/
 **/.parcel-cache/
 **/.turbo/
 **/.npm-cache/
+**/.pnpm-store/
+**/.yarn/cache/
+**/.yarn/unplugged/
+**/.yarn/build-state.yml
+**/.yarn/install-state.gz
 **/.eslintcache
 **/*.tsbuildinfo

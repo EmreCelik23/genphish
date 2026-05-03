@@ -23,6 +23,9 @@ yarn-error.log*
 
 # Local caches
 .npm-cache/
+.pnpm-store/
+.yarn/
+.vercel/
 
 # OS files
 .DS_Store
