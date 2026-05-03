@@ -29,15 +29,24 @@ export type DashboardResponse = {
   }[];
 };
 
+export type CampaignTargetingType = "ALL_COMPANY" | "DEPARTMENT" | "INDIVIDUAL" | "HIGH_RISK";
+export type CampaignStatus = "DRAFT" | "GENERATING" | "READY" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELED";
+export type TemplateCategory = "CREDENTIAL_HARVESTING" | "CLICK_ONLY" | "MALWARE_DELIVERY" | "OAUTH_CONSENT";
+export type TemplateStatus = "GENERATING" | "READY" | "FAILED";
+export type TemplateType = "STATIC" | "AI_GENERATED";
+export type DifficultyLevel = "AMATEUR" | "PROFESSIONAL";
+export type LanguageCode = "TR" | "EN";
+export type AiProvider = "openai" | "anthropic" | "gemini" | "stub";
+
 export type CampaignResponse = {
   id: string;
   companyId: string;
   name: string;
-  targetingType: "ALL_COMPANY" | "DEPARTMENT" | "INDIVIDUAL" | "HIGH_RISK";
+  targetingType: CampaignTargetingType;
   targetDepartment?: string;
   templateId: string;
   qrCodeEnabled: boolean;
-  status: "DRAFT" | "GENERATING" | "READY" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELED";
+  status: CampaignStatus;
   scheduledFor?: string;
   createdAt: string;
 };
@@ -47,11 +56,11 @@ export type PhishingTemplateResponse = {
   companyId: string;
   name: string;
   category: string;
-  templateCategory: "CREDENTIAL_HARVESTING" | "CLICK_ONLY" | "MALWARE_DELIVERY" | "OAUTH_CONSENT";
-  type: "STATIC" | "AI_GENERATED";
-  status: "GENERATING" | "READY" | "FAILED";
-  difficultyLevel: "AMATEUR" | "PROFESSIONAL";
-  languageCode: "TR" | "EN";
+  templateCategory: TemplateCategory;
+  type: TemplateType;
+  status: TemplateStatus;
+  difficultyLevel: DifficultyLevel;
+  languageCode: LanguageCode;
   emailSubject?: string;
   emailBody?: string;
   landingPageHtml?: string;
@@ -71,4 +80,27 @@ export type EmployeeResponse = {
   riskScore: number;
   active: boolean;
   createdAt: string;
+};
+
+export type CreateCampaignRequest = {
+  name: string;
+  targetingType: CampaignTargetingType;
+  targetDepartment?: string;
+  targetEmployeeIds?: string[];
+  templateId: string;
+  qrCodeEnabled: boolean;
+};
+
+export type GenerateTemplateRequest = {
+  name: string;
+  category?: string;
+  prompt: string;
+  targetUrl?: string;
+  templateCategory: TemplateCategory;
+  referenceImageUrl?: string;
+  languageCode: LanguageCode;
+  difficultyLevel: DifficultyLevel;
+  aiProvider?: AiProvider;
+  aiModel?: string;
+  allowFallbackTemplate?: boolean;
 };
