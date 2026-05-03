@@ -59,7 +59,7 @@ function SidebarContent({ onNavigate }: { onNavigate: () => void }) {
         </div>
         <div>
           <p className="text-sm font-semibold text-text">{t.appName}</p>
-          <p className="text-xs text-muted">SOC Workspace</p>
+          <p className="text-xs text-muted">{t.layout.socWorkspace}</p>
         </div>
       </div>
 
@@ -141,6 +141,8 @@ function SidebarContent({ onNavigate }: { onNavigate: () => void }) {
 }
 
 export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
+  const { t } = useI18n();
+
   return (
     <>
       <div
@@ -158,7 +160,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         )}
       >
         <button
-          aria-label="Close menu"
+          aria-label={t.layout.closeMenuAria}
           onClick={onClose}
           className="absolute right-3 top-3 rounded-md border border-border bg-surface/70 p-1.5 text-muted hover:text-text"
         >

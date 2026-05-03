@@ -150,7 +150,7 @@ Key variables:
 | `SERVER_PORT` | HTTP port | `8080` |
 | `APP_ENV` | Runtime environment (`local`, `dev`, `staging`, `prod`) | `local` |
 | `POSTGRES_*` | PostgreSQL connection | see `.env.example` |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka brokers | `kafka-1:9092,kafka-2:9092` |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka brokers | `kafka:9092` |
 | `REDIS_HOST` / `REDIS_PORT` | Redis cache endpoint | `redis` / `6379` |
 | `TRACKER_BASE_URL` | Tracker link/pixel base URL | `http://tracker-service:8081` |
 | `PYTHON_SERVICE_BASE_URL` | AI engine HTTP fallback endpoint | `http://ai-engine-service:5000` |
@@ -202,7 +202,7 @@ ALTER TABLE phishing_templates
 You can start infra from project root:
 
 ```bash
-docker compose up -d postgres redis zookeeper kafka
+docker compose up -d postgres redis kafka
 ```
 
 Run the service:

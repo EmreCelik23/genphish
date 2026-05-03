@@ -42,6 +42,7 @@ export function createApiServices(client: ApiClient, companyId: string) {
     },
     templates: {
       list: () => client.get<PhishingTemplateResponse[]>(`${companyPrefix}/templates`),
+      getById: (templateId: string) => client.get<PhishingTemplateResponse>(`${companyPrefix}/templates/${templateId}`),
       generate: (payload: GenerateTemplateRequest) =>
         client.post<PhishingTemplateResponse>(`${companyPrefix}/templates/generate`, payload),
       regenerate: (templateId: string, payload: RegenerateTemplateRequest) =>

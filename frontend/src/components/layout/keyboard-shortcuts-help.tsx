@@ -2,31 +2,12 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Keyboard, X } from "lucide-react";
+import { useI18n } from "@/lib/i18n/i18n-context";
 
 type ShortcutItem = {
   keys: string[];
   description: string;
 };
-
-const SHORTCUT_GROUPS: { group: string; items: ShortcutItem[] }[] = [
-  {
-    group: "Navigasyon",
-    items: [
-      { keys: ["g", "d"], description: "Dashboard" },
-      { keys: ["g", "c"], description: "Kampanyalar" },
-      { keys: ["g", "t"], description: "Template Studio" },
-      { keys: ["g", "e"], description: "Çalışanlar" },
-      { keys: ["g", "s"], description: "Ayarlar" }
-    ]
-  },
-  {
-    group: "Genel",
-    items: [
-      { keys: ["?"], description: "Bu pencereyi aç/kapat" },
-      { keys: ["Esc"], description: "Modal kapat" }
-    ]
-  }
-];
 
 type Props = {
   open: boolean;
@@ -42,6 +23,28 @@ function Kbd({ children }: { children: React.ReactNode }) {
 }
 
 export function KeyboardShortcutsHelp({ open, onClose }: Props) {
+  const { t } = useI18n();
+
+  const shortcutGroups: { group: string; items: ShortcutItem[] }[] = [
+    {
+      group: t.layout.shortcutsNavigationGroup,
+      items: [
+        { keys: ["g", "d"], description: t.nav.dashboard },
+        { keys: ["g", "c"], description: t.nav.campaigns },
+        { keys: ["g", "t"], description: t.nav.templates },
+        { keys: ["g", "e"], description: t.nav.employees },
+        { keys: ["g", "s"], description: t.nav.settings }
+      ]
+    },
+    {
+      group: t.layout.shortcutsGeneralGroup,
+      items: [
+        { keys: ["?"], description: t.layout.shortcutsToggleHelp },
+        { keys: ["Esc"], description: t.layout.shortcutsCloseModal }
+      ]
+    }
+  ];
+
   return (
     <AnimatePresence>
       {open && (
@@ -66,19 +69,19 @@ export function KeyboardShortcutsHelp({ open, onClose }: Props) {
             <div className="mb-5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Keyboard className="h-4 w-4 text-accent" />
-                <p className="text-sm font-medium text-text">Klavye Kısayolları</p>
+                <p className="text-sm font-medium text-text">{t.layout.shortcutsTitle}</p>
               </div>
               <button
                 onClick={onClose}
                 className="rounded-md p-1 text-muted transition-colors hover:text-text"
-                aria-label="Kapat"
+                aria-label={t.common.close}
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="space-y-5">
-              {SHORTCUT_GROUPS.map((group) => (
+              {shortcutGroups.map((group) => (
                 <div key={group.group}>
                   <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-muted">
                     {group.group}
@@ -92,7 +95,7 @@ export function KeyboardShortcutsHelp({ open, onClose }: Props) {
                             <span key={i} className="flex items-center gap-1">
                               <Kbd>{k}</Kbd>
                               {i < item.keys.length - 1 && (
-                                <span className="text-[10px] text-muted">then</span>
+                                <span className="text-[10px] text-muted">{t.layout.shortcutsThen}</span>
                               )}
                             </span>
                           ))}

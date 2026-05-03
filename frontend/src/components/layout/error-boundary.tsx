@@ -7,6 +7,9 @@ type Props = {
   children: ReactNode;
   /** Custom fallback. If omitted, default ErrorFallback is shown. */
   fallback?: ReactNode;
+  title?: string;
+  retryLabel?: string;
+  unknownErrorLabel?: string;
 };
 
 type State = {
@@ -47,9 +50,9 @@ export class ErrorBoundary extends Component<Props, State> {
             <AlertTriangle className="h-6 w-6 text-rose-400" />
           </div>
           <div>
-            <p className="text-sm font-medium text-text">Bir şeyler yanlış gitti</p>
+            <p className="text-sm font-medium text-text">{this.props.title ?? "Something went wrong"}</p>
             <p className="mt-1 font-mono text-xs text-muted">
-              {this.state.error?.message ?? "Bilinmeyen hata"}
+              {this.state.error?.message ?? this.props.unknownErrorLabel ?? "Unknown error"}
             </p>
           </div>
           <button
@@ -57,7 +60,7 @@ export class ErrorBoundary extends Component<Props, State> {
             className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm text-text transition-colors hover:border-accent hover:text-accent"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Yeniden Dene
+            {this.props.retryLabel ?? "Try Again"}
           </button>
         </div>
       );

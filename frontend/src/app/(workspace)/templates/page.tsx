@@ -1,11 +1,14 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Languages, RefreshCw, ShieldCheck, Sparkles, Upload } from "lucide-react";
+import { Copy, Download, ExternalLink, Eye, Languages, RefreshCw, ShieldCheck, Sparkles, Upload } from "lucide-react";
+import type { Route } from "next";
+import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -90,7 +93,21 @@ function difficultyTone(level: PhishingTemplateResponse["difficultyLevel"]): Bad
   }
 }
 
+function asPreviewDocument(content?: string) {
+  const value = content?.trim();
+  if (!value) {
+    return "";
+  }
+
+  if (/<html[\s>]/i.test(value)) {
+    return value;
+  }
+
+  return `<!doctype html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body>${value}</body></html>`;
+}
+
 export default function TemplatesPage() {
+  const router = useRouter();
   const { api } = useApi();
   const { t } = useI18n();
   const { toast } = useToast();
@@ -104,6 +121,10 @@ export default function TemplatesPage() {
   const [regeneratingTemplateId, setRegeneratingTemplateId] = useState<string | null>(null);
   const [regeneratePrompts, setRegeneratePrompts] = useState<Record<string, string>>({});
   const [regenerateScopes, setRegenerateScopes] = useState<Record<string, RegenerationScope>>({});
+  const [previewTemplateId, setPreviewTemplateId] = useState<string | null>(null);
+  const [previewDetails, setPreviewDetails] = useState<Record<string, PhishingTemplateResponse>>({});
+  const [previewLoadingTemplateId, setPreviewLoadingTemplateId] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const [form, setForm] = useState<TemplateFormState>({
     name: "",
@@ -120,7 +141,7 @@ export default function TemplatesPage() {
   });
 
   // ── Search & Filter ────────────────────────────────────────────────
-  const [statusFilter, setStatusFilter] = useState<TemplateStatus | "">("")
+  const [statusFilter, setStatusFilter] = useState<TemplateStatus | "">("");
   const { filtered: searchedTemplates, query: searchQuery, setQuery: setSearchQuery } = useSearch(templates, {
     keys: ["name", "id", "templateCategory"],
     debounceMs: 200
@@ -254,7 +275,7 @@ export default function TemplatesPage() {
   const handleRegenerateTemplate = async (template: PhishingTemplateResponse) => {
     const prompt = (regeneratePrompts[template.id] ?? "").trim();
     if (!prompt) {
-      toast(`${t.templates.regeneratePrompt} is required`, "error");
+      toast(t.validation.required, "error");
       return;
     }
 
@@ -280,6 +301,89 @@ export default function TemplatesPage() {
     } finally {
       setRegeneratingTemplateId(null);
     }
+  };
+
+  const selectedPreviewTemplate = useMemo(() => {
+    if (!previewTemplateId) {
+      return null;
+    }
+
+    return previewDetails[previewTemplateId] ?? templates.find((item) => item.id === previewTemplateId) ?? null;
+  }, [previewDetails, previewTemplateId, templates]);
+
+  const handleOpenPreview = async (templateId: string) => {
+    setPreviewTemplateId(templateId);
+    setPreviewError(null);
+
+    if (previewDetails[templateId]) {
+      return;
+    }
+
+    setPreviewLoadingTemplateId(templateId);
+    try {
+      const detailed = await api.templates.getById(templateId);
+      setPreviewDetails((prev) => ({ ...prev, [templateId]: detailed }));
+    } catch (previewFetchError) {
+      const message = previewFetchError instanceof Error ? previewFetchError.message : t.common.unknownError;
+      setPreviewError(message);
+      toast(message, "error");
+    } finally {
+      setPreviewLoadingTemplateId(null);
+    }
+  };
+
+  const handleCopyContent = async (value: string | undefined, successMessage: string) => {
+    const content = value?.trim();
+    if (!content) {
+      toast(t.templates.noPreviewContent, "info");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(content);
+      toast(successMessage, "success");
+    } catch {
+      toast(t.common.unknownError, "error");
+    }
+  };
+
+  const handleDownloadContent = (
+    value: string | undefined,
+    fileName: string,
+    successMessage: string
+  ) => {
+    const content = value?.trim();
+    if (!content) {
+      toast(t.templates.noPreviewContent, "info");
+      return;
+    }
+
+    try {
+      const blob = new Blob([asPreviewDocument(content)], { type: "text/html;charset=utf-8" });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+      toast(successMessage, "success");
+    } catch {
+      toast(t.common.unknownError, "error");
+    }
+  };
+
+  const buildHtmlFileName = (template: PhishingTemplateResponse, type: "email" | "landing") => {
+    const safeName =
+      template.name
+        .toLowerCase()
+        .replace(/[^a-z0-9-_]+/gi, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "") || template.id;
+    return `${safeName}-${type}.html`;
+  };
+
+  const goToTemplatePage = (templateId: string) => {
+    router.push(`/templates/${templateId}` as Route);
   };
 
   return (
@@ -495,7 +599,17 @@ export default function TemplatesPage() {
                       <p className="text-sm font-medium text-text">{item.name}</p>
                       <p className="mt-1 text-xs text-muted">{item.id}</p>
                     </div>
-                    <Badge tone={statusTone(item.status)}>{t.templates.statuses[item.status]}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={statusTone(item.status)}>{t.templates.statuses[item.status]}</Badge>
+                      <Button variant="ghost" onClick={() => void handleOpenPreview(item.id)}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        {t.templates.previewAction}
+                      </Button>
+                      <Button variant="ghost" onClick={() => goToTemplatePage(item.id)}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        {t.templates.openPageAction}
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-muted lg:grid-cols-2">
@@ -596,6 +710,152 @@ export default function TemplatesPage() {
             )}
           </Card>
         ) : null}
+
+        <Dialog
+          open={Boolean(previewTemplateId)}
+          onClose={() => {
+            setPreviewTemplateId(null);
+            setPreviewError(null);
+          }}
+          title={selectedPreviewTemplate ? `${t.templates.previewTitle} • ${selectedPreviewTemplate.name}` : t.templates.previewTitle}
+          className="max-w-6xl"
+        >
+          {previewError ? <p className="text-sm text-rose-300">{previewError}</p> : null}
+
+          {previewLoadingTemplateId === previewTemplateId ? (
+            <div className="space-y-3">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-56 w-full" />
+              <Skeleton className="h-56 w-full" />
+            </div>
+          ) : null}
+
+          {previewLoadingTemplateId !== previewTemplateId && selectedPreviewTemplate ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border bg-surface/50 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs uppercase tracking-[0.12em] text-muted">{t.templates.emailSubject}</p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" onClick={() => goToTemplatePage(selectedPreviewTemplate.id)}>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      {t.templates.openPageAction}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => void handleCopyContent(selectedPreviewTemplate.emailSubject, t.templates.subjectCopied)}
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      {t.templates.copySubject}
+                    </Button>
+                  </div>
+                </div>
+                <p className="font-mono text-sm text-text">
+                  {selectedPreviewTemplate.emailSubject?.trim() || t.templates.noEmailPreview}
+                </p>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                <div className="rounded-xl border border-border bg-surface/50 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted">{t.templates.emailPreview}</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        onClick={() => void handleCopyContent(selectedPreviewTemplate.emailBody, t.templates.emailHtmlCopied)}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        {t.templates.copyEmailHtml}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() =>
+                          handleDownloadContent(
+                            selectedPreviewTemplate.emailBody,
+                            buildHtmlFileName(selectedPreviewTemplate, "email"),
+                            t.templates.emailHtmlDownloaded
+                          )
+                        }
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        {t.templates.downloadEmailHtml}
+                      </Button>
+                    </div>
+                  </div>
+                  {selectedPreviewTemplate.emailBody?.trim() ? (
+                    <>
+                      <iframe
+                        title={`${selectedPreviewTemplate.id}-email-preview`}
+                        srcDoc={asPreviewDocument(selectedPreviewTemplate.emailBody)}
+                        sandbox="allow-forms allow-popups"
+                        className="h-[360px] w-full rounded-lg border border-border bg-white"
+                      />
+                      <details className="mt-3 rounded-lg border border-border bg-surface/40 p-2">
+                        <summary className="cursor-pointer text-xs uppercase tracking-[0.1em] text-muted">
+                          {t.templates.rawCode}
+                        </summary>
+                        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-black/20 p-2 text-[11px] text-text">
+                          {selectedPreviewTemplate.emailBody}
+                        </pre>
+                      </details>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted">{t.templates.noEmailPreview}</p>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-border bg-surface/50 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted">{t.templates.landingPreview}</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        onClick={() =>
+                          void handleCopyContent(selectedPreviewTemplate.landingPageHtml, t.templates.landingHtmlCopied)
+                        }
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        {t.templates.copyLandingHtml}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() =>
+                          handleDownloadContent(
+                            selectedPreviewTemplate.landingPageHtml,
+                            buildHtmlFileName(selectedPreviewTemplate, "landing"),
+                            t.templates.landingHtmlDownloaded
+                          )
+                        }
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        {t.templates.downloadLandingHtml}
+                      </Button>
+                    </div>
+                  </div>
+                  {selectedPreviewTemplate.landingPageHtml?.trim() ? (
+                    <>
+                      <iframe
+                        title={`${selectedPreviewTemplate.id}-landing-preview`}
+                        srcDoc={asPreviewDocument(selectedPreviewTemplate.landingPageHtml)}
+                        sandbox="allow-forms allow-popups"
+                        className="h-[360px] w-full rounded-lg border border-border bg-white"
+                      />
+                      <details className="mt-3 rounded-lg border border-border bg-surface/40 p-2">
+                        <summary className="cursor-pointer text-xs uppercase tracking-[0.1em] text-muted">
+                          {t.templates.rawCode}
+                        </summary>
+                        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-black/20 p-2 text-[11px] text-text">
+                          {selectedPreviewTemplate.landingPageHtml}
+                        </pre>
+                      </details>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted">{t.templates.noLandingPreview}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </Dialog>
       </div>
   );
 }

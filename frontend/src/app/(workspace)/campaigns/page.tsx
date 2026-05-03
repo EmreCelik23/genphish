@@ -324,7 +324,7 @@ export default function CampaignsPage() {
       } else {
         const scheduledFor = scheduleDrafts[campaignId];
         if (!scheduledFor) {
-          toast(`${t.campaigns.scheduledForInput} is required`, "error");
+          toast(t.validation.required, "error");
           return;
         }
         updated = await api.campaigns.schedule(campaignId, { scheduledFor });

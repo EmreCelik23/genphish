@@ -60,7 +60,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
             <ShieldAlert className="mx-auto h-8 w-8 text-amber-400" />
             <p className="mt-3 text-base font-medium text-text">{t.auth.forbidden}</p>
             <p className="mt-1 text-sm text-muted">
-              Required: {requiredRole} — Current: {auth.role}
+              {t.auth.requiredRoleLabel}: {requiredRole} — {t.auth.currentRoleLabel}: {auth.role}
             </p>
           </Card>
         </motion.div>

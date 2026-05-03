@@ -102,7 +102,7 @@ Key variables:
 | `APP_ENV` | Runtime environment (`local`, `dev`, `staging`, `prod`) | `local` |
 | `GIN_MODE` | Gin mode (`release`, `debug`) | `release` |
 | `PUBLISH_TIMEOUT_MS` | Kafka publish timeout per request | `300` |
-| `KAFKA_BROKERS` | Kafka broker list | `kafka-1:9092,kafka-2:9092` |
+| `KAFKA_BROKERS` | Kafka broker list | `localhost:9092` |
 | `KAFKA_TOPIC` | Tracking topic | `tracking_events` |
 | `KAFKA_BATCH_TIMEOUT_MS` | Kafka writer batch timeout | `5` |
 | `KAFKA_BATCH_SIZE` | Kafka writer batch size | `200` |

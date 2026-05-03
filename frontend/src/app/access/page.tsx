@@ -121,11 +121,11 @@ export default function AccessPage() {
     const domain = createDomain.trim().toLowerCase();
 
     if (!name) {
-      setCreateError(`${t.auth.companyName} is required`);
+      setCreateError(t.validation.required);
       return;
     }
     if (!domain || !domain.includes(".")) {
-      setCreateError(`${t.auth.companyDomain} is invalid`);
+      setCreateError(t.validation.invalidDomain);
       return;
     }
 

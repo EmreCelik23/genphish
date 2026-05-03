@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { WifiOff, X } from "lucide-react";
+import { useI18n } from "@/lib/i18n/i18n-context";
 
 /**
  * Shows a dismissible banner when the browser loses network connectivity.
  * Automatically hides when the connection is restored.
  */
 export function OfflineBanner() {
+  const { t } = useI18n();
   const [isOffline, setIsOffline] = useState(() =>
     typeof navigator !== "undefined" ? !navigator.onLine : false
   );
@@ -48,13 +50,13 @@ export function OfflineBanner() {
           <div className="flex items-center gap-2 text-amber-300">
             <WifiOff className="h-4 w-4 shrink-0" />
             <p className="text-sm font-medium">
-              İnternet bağlantısı yok — değişiklikler kaydedilmeyebilir.
+              {t.layout.offlineMessage}
             </p>
           </div>
           <button
             onClick={() => setDismissed(true)}
             className="rounded-md p-1 text-amber-300/60 transition-colors hover:text-amber-300"
-            aria-label="Kapat"
+            aria-label={t.common.close}
           >
             <X className="h-4 w-4" />
           </button>

@@ -9,14 +9,17 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
 
-const pageMap: Record<string, keyof ReturnType<typeof useI18n>["t"]["nav"]> = {
-  "/dashboard": "dashboard",
-  "/campaigns": "campaigns",
-  "/templates": "templates",
-  "/employees": "employees",
-  "/settings": "settings",
-  "/access": "access"
-};
+const routeMatchers: Array<{
+  key: keyof ReturnType<typeof useI18n>["t"]["nav"];
+  match: (pathname: string) => boolean;
+}> = [
+  { key: "dashboard", match: (pathname) => pathname === "/dashboard" || pathname.startsWith("/dashboard/") },
+  { key: "campaigns", match: (pathname) => pathname === "/campaigns" || pathname.startsWith("/campaigns/") },
+  { key: "templates", match: (pathname) => pathname === "/templates" || pathname.startsWith("/templates/") },
+  { key: "employees", match: (pathname) => pathname === "/employees" || pathname.startsWith("/employees/") },
+  { key: "settings", match: (pathname) => pathname === "/settings" || pathname.startsWith("/settings/") },
+  { key: "access", match: (pathname) => pathname === "/access" || pathname.startsWith("/access/") }
+];
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
@@ -25,7 +28,8 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { t } = useI18n();
   const { auth, sessionWarning, logout } = useAuth();
 
-  const pageTitle = t.nav[pageMap[pathname] ?? "dashboard"];
+  const activeRouteKey = routeMatchers.find((item) => item.match(pathname))?.key ?? "dashboard";
+  const pageTitle = t.nav[activeRouteKey];
 
   const toggleTheme = () => {
     const next = settings.theme === "dark" ? "light" : "dark";
@@ -47,12 +51,12 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         <button
           onClick={onMenuClick}
           className="rounded-lg border border-border bg-panel p-2 text-muted hover:text-text lg:hidden"
-          aria-label="Open menu"
+          aria-label={t.layout.openMenuAria}
         >
           <Menu className="h-4 w-4" />
         </button>
         <div>
-          <p className="text-xs uppercase tracking-[0.14em] text-muted">Workspace</p>
+          <p className="text-xs uppercase tracking-[0.14em] text-muted">{t.layout.workspaceLabel}</p>
           <p className="text-sm font-semibold text-text">{pageTitle}</p>
         </div>
       </div>
