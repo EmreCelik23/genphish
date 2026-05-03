@@ -49,6 +49,7 @@ temp/
 /docker-compose.override.yml
 
 # Common build artifacts across modules
+/META-INF/
 **/target/
 **/build/
 **/out/

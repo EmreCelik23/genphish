@@ -4,9 +4,9 @@ services:
     image: postgres:16-alpine
     container_name: genphish-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_USER: ${POSTGRES_USER:-genphish_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: ${POSTGRES_DB:-genphish_db}
     ports:
       # TODO (SaaS Aşaması): Canlı ortamda dışarıya port KESİNLİKLE açılmaz. Sadece iç ağdan erişilecek.
       - "5432:5432"
