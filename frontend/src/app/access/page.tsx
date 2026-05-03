@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth/auth-context";
-import { ApiClient } from "@/lib/api/client";
+import { ApiClient, ApiError } from "@/lib/api/client";
 import { createGlobalApiServices } from "@/lib/api/services";
 import type { CompanyResponse } from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
@@ -85,13 +85,19 @@ export default function AccessPage() {
       if (response.length === 1) {
         setSelectedCompanyId(response[0].id);
       }
-    } catch {
-      setTokenError(t.auth.tokenInvalid);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setTokenError(t.auth.tokenUnauthorized);
+      } else if (error instanceof TypeError) {
+        setTokenError(t.auth.tokenConnectionFailed);
+      } else {
+        setTokenError(t.auth.tokenInvalid);
+      }
       setTokenValidated(false);
     } finally {
       setValidating(false);
     }
-  }, [token, settings, t.auth.tokenInvalid]);
+  }, [token, settings, t.auth.tokenConnectionFailed, t.auth.tokenInvalid, t.auth.tokenUnauthorized]);
 
   // ── Fetch companies ──────────────────────────────────────────────
 
