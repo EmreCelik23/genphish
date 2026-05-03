@@ -11,7 +11,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https: ws:",
+  "connect-src 'self' http: https: ws:",
   "frame-src 'self'",
   "upgrade-insecure-requests"
 ].join("; ");
