@@ -1,15 +1,23 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { CircleUserRound, RefreshCw, ShieldAlert, Upload, UserPlus, UserX, UsersRound } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
+import { SearchInput } from "@/components/ui/search-input";
+import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import type { EmployeeResponse, EmployeeRiskProfileResponse, ImportResultResponse } from "@/lib/api/types";
+import { usePagination } from "@/lib/hooks/use-pagination";
+import { useSearch } from "@/lib/hooks/use-search";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
 
@@ -81,6 +89,32 @@ export default function EmployeesPage() {
 
   const locale = settings.language === "tr" ? "tr-TR" : "en-US";
 
+  // ── Search & Filter ────────────────────────────────────────────────
+  const [activeFilter, setActiveFilter] = useState<"" | "active" | "passive">("")
+  const [deptFilter, setDeptFilter] = useState("");
+  const { filtered: searchedEmployees, query: searchQuery, setQuery: setSearchQuery } = useSearch(employees, {
+    keys: ["firstName", "lastName", "email", "department"],
+    debounceMs: 200
+  });
+
+  const departments = useMemo(
+    () => [...new Set(employees.map((e) => e.department).filter((d) => d.trim().length > 0))].sort(),
+    [employees]
+  );
+
+  const filteredEmployees = useMemo(() => {
+    let result = searchedEmployees;
+    if (activeFilter === "active") result = result.filter((e) => e.active);
+    if (activeFilter === "passive") result = result.filter((e) => !e.active);
+    if (deptFilter) result = result.filter((e) => e.department === deptFilter);
+    return result;
+  }, [searchedEmployees, activeFilter, deptFilter]);
+
+  const pag = usePagination(filteredEmployees, { defaultPageSize: 10 });
+
+  // ── Deactivate dialog ─────────────────────────────────────────────
+  const [deactivateDialogId, setDeactivateDialogId] = useState<string | null>(null);
+
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -112,19 +146,19 @@ export default function EmployeesPage() {
     const department = createForm.department.trim();
 
     if (!firstName) {
-      setCreateError(`${t.employees.firstName} is required`);
+      setCreateError(t.validation.required);
       return;
     }
     if (!lastName) {
-      setCreateError(`${t.employees.lastName} is required`);
+      setCreateError(t.validation.required);
       return;
     }
     if (!email || !email.includes("@")) {
-      setCreateError(`${t.employees.email} is invalid`);
+      setCreateError(t.validation.invalidEmail);
       return;
     }
     if (!department) {
-      setCreateError(`${t.employees.department} is required`);
+      setCreateError(t.validation.required);
       return;
     }
 
@@ -157,7 +191,7 @@ export default function EmployeesPage() {
     setImportSuccess(null);
 
     if (!selectedImportFile) {
-      setImportError(`${t.employees.selectFile} is required`);
+      setImportError(t.validation.required);
       return;
     }
 
@@ -179,6 +213,7 @@ export default function EmployeesPage() {
   };
 
   const handleDeactivateEmployee = async (employeeId: string) => {
+    setDeactivateDialogId(null);
     setActionError(null);
     setActionSuccess(null);
     setDeactivatingEmployeeId(employeeId);
@@ -265,38 +300,34 @@ export default function EmployeesPage() {
 
             <form className="space-y-3" onSubmit={(event) => void handleCreateEmployee(event)}>
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.employees.firstName}</label>
+                <FormField label={t.employees.firstName} required>
                   <Input
                     value={createForm.firstName}
                     onChange={(event) => setCreateForm((prev) => ({ ...prev, firstName: event.target.value }))}
                   />
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.employees.lastName}</label>
+                </FormField>
+                <FormField label={t.employees.lastName} required>
                   <Input
                     value={createForm.lastName}
                     onChange={(event) => setCreateForm((prev) => ({ ...prev, lastName: event.target.value }))}
                   />
-                </div>
+                </FormField>
               </div>
 
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.employees.email}</label>
+                <FormField label={t.employees.email} required>
                   <Input
                     type="email"
                     value={createForm.email}
                     onChange={(event) => setCreateForm((prev) => ({ ...prev, email: event.target.value }))}
                   />
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.employees.department}</label>
+                </FormField>
+                <FormField label={t.employees.department} required>
                   <Input
                     value={createForm.department}
                     onChange={(event) => setCreateForm((prev) => ({ ...prev, department: event.target.value }))}
                   />
-                </div>
+                </FormField>
               </div>
 
               {createError ? (
@@ -390,15 +421,51 @@ export default function EmployeesPage() {
 
         {!loading && !employees.length ? (
           <Card>
-            <p className="text-sm font-medium text-text">{t.employees.noData}</p>
-            <p className="mt-1 text-xs text-muted">{t.employees.noDataHint}</p>
+            <EmptyState
+              icon={UsersRound}
+              title={t.employees.noData}
+              description={t.employees.noDataHint}
+            />
           </Card>
         ) : null}
 
         {employees.length ? (
           <Card>
+            {/* Search & Filter toolbar */}
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder={t.search.placeholder}
+                className="sm:max-w-xs"
+              />
+              <Select
+                value={deptFilter}
+                onChange={(e) => setDeptFilter(e.target.value)}
+                className="sm:max-w-[180px]"
+              >
+                <option value="">{t.filter.all} — {t.filter.department}</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </Select>
+              <Select
+                value={activeFilter}
+                onChange={(e) => setActiveFilter(e.target.value as "" | "active" | "passive")}
+                className="sm:max-w-[140px]"
+              >
+                <option value="">{t.filter.all}</option>
+                <option value="active">{t.filter.active}</option>
+                <option value="passive">{t.filter.passive}</option>
+              </Select>
+            </div>
+
+            {filteredEmployees.length === 0 ? (
+              <EmptyState icon={UsersRound} title={t.search.noResults} />
+            ) : (
+              <>
             <div className="space-y-3">
-              {employees.map((item) => (
+              {pag.paginated.map((item) => (
                 <div key={item.id} className="rounded-xl border border-border bg-surface/50 p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -415,7 +482,7 @@ export default function EmployeesPage() {
                       {item.active ? (
                         <Button
                           variant="danger"
-                          onClick={() => void handleDeactivateEmployee(item.id)}
+                          onClick={() => setDeactivateDialogId(item.id)}
                           disabled={deactivatingEmployeeId !== null}
                         >
                           <UserX className="mr-2 h-4 w-4" />
@@ -497,8 +564,54 @@ export default function EmployeesPage() {
                 </div>
               ))}
             </div>
+
+            {/* Pagination */}
+            <div className="mt-4">
+              <Pagination
+                page={pag.page}
+                totalPages={pag.totalPages}
+                rangeStart={pag.rangeStart}
+                rangeEnd={pag.rangeEnd}
+                total={pag.total}
+                pageSize={pag.pageSize}
+                hasNext={pag.hasNext}
+                hasPrev={pag.hasPrev}
+                onPageChange={pag.setPage}
+                onPageSizeChange={pag.setPageSize}
+                labels={{
+                  showing: t.pagination.showing,
+                  of: t.pagination.of,
+                  perPage: t.pagination.perPage,
+                  previous: t.pagination.previous,
+                  next: t.pagination.next
+                }}
+              />
+            </div>
+              </>
+            )}
           </Card>
         ) : null}
+
+        {/* Deactivate confirmation dialog */}
+        <Dialog
+          open={deactivateDialogId !== null}
+          onClose={() => setDeactivateDialogId(null)}
+          title={t.employees.deactivateAction}
+        >
+          <p className="text-sm text-muted">{t.employees.deactivateAction}?</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setDeactivateDialogId(null)}>
+              {t.common.cancel}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => { if (deactivateDialogId) void handleDeactivateEmployee(deactivateDialogId); }}
+            >
+              <UserX className="mr-2 h-4 w-4" />
+              {t.employees.deactivateAction}
+            </Button>
+          </div>
+        </Dialog>
       </div>
   );
 }

@@ -1,12 +1,16 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Languages, RefreshCw, ShieldCheck, Sparkles, Upload } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
+import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,8 +23,11 @@ import type {
   PhishingTemplateResponse,
   RegenerateTemplateRequest,
   RegenerationScope,
-  TemplateCategory
+  TemplateCategory,
+  TemplateStatus
 } from "@/lib/api/types";
+import { usePagination } from "@/lib/hooks/use-pagination";
+import { useSearch } from "@/lib/hooks/use-search";
 import { useI18n } from "@/lib/i18n/i18n-context";
 
 type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
@@ -116,6 +123,20 @@ export default function TemplatesPage() {
     allowFallbackTemplate: true
   });
 
+  // ── Search & Filter ────────────────────────────────────────────────
+  const [statusFilter, setStatusFilter] = useState<TemplateStatus | "">("")
+  const { filtered: searchedTemplates, query: searchQuery, setQuery: setSearchQuery } = useSearch(templates, {
+    keys: ["name", "id", "templateCategory"],
+    debounceMs: 200
+  });
+
+  const filteredTemplates = useMemo(
+    () => statusFilter ? searchedTemplates.filter((t2) => t2.status === statusFilter) : searchedTemplates,
+    [searchedTemplates, statusFilter]
+  );
+
+  const pag = usePagination(filteredTemplates, { defaultPageSize: 10 });
+
   const upsertTemplate = (updated: PhishingTemplateResponse) => {
     setTemplates((prev) => {
       const exists = prev.some((item) => item.id === updated.id);
@@ -195,11 +216,11 @@ export default function TemplatesPage() {
     const name = form.name.trim();
     const prompt = form.prompt.trim();
     if (!name) {
-      setGenerateError(`${t.templates.templateName} is required`);
+      setGenerateError(t.validation.required);
       return;
     }
     if (!prompt) {
-      setGenerateError(`${t.templates.prompt} is required`);
+      setGenerateError(t.validation.required);
       return;
     }
 
@@ -300,52 +321,45 @@ export default function TemplatesPage() {
 
           <form className="space-y-4" onSubmit={(event) => void handleGenerateTemplate(event)}>
             <div className="grid gap-3 lg:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.templateName}</label>
+              <FormField label={t.templates.templateName} required>
                 <Input
                   value={form.name}
                   onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                   placeholder="Invoice Impersonation v2"
                 />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.categoryTagField}</label>
+              </FormField>
+              <FormField label={t.templates.categoryTagField}>
                 <Input
                   value={form.category}
                   onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
                   placeholder="AI Generated"
                 />
-              </div>
+              </FormField>
             </div>
 
-            <div>
-              <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.prompt}</label>
+            <FormField label={t.templates.prompt} required>
               <Textarea
                 value={form.prompt}
                 onChange={(event) => setForm((prev) => ({ ...prev, prompt: event.target.value }))}
                 placeholder={t.templates.promptPlaceholder}
               />
-            </div>
+            </FormField>
 
             <div className="grid gap-3 lg:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.targetUrl}</label>
+              <FormField label={t.templates.targetUrl}>
                 <Input
                   value={form.targetUrl}
                   onChange={(event) => setForm((prev) => ({ ...prev, targetUrl: event.target.value }))}
                   placeholder="https://portal.example.com/login"
                 />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">
-                  {t.templates.referenceImageUrlField}
-                </label>
+              </FormField>
+              <FormField label={t.templates.referenceImageUrlField}>
                 <Input
                   value={form.referenceImageUrl}
                   onChange={(event) => setForm((prev) => ({ ...prev, referenceImageUrl: event.target.value }))}
                   placeholder="https://..."
                 />
-              </div>
+              </FormField>
             </div>
 
             <div className="rounded-xl border border-border bg-surface/40 p-3">
@@ -366,10 +380,7 @@ export default function TemplatesPage() {
             </div>
 
             <div className="grid gap-3 lg:grid-cols-4">
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">
-                  {t.templates.templateCategoryField}
-                </label>
+              <FormField label={t.templates.templateCategoryField}>
                 <Select
                   value={form.templateCategory}
                   onChange={(event) => setForm((prev) => ({ ...prev, templateCategory: event.target.value as TemplateCategory }))}
@@ -379,9 +390,8 @@ export default function TemplatesPage() {
                   <option value="MALWARE_DELIVERY">MALWARE_DELIVERY</option>
                   <option value="OAUTH_CONSENT">OAUTH_CONSENT</option>
                 </Select>
-              </div>
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.languageCodeField}</label>
+              </FormField>
+              <FormField label={t.templates.languageCodeField}>
                 <Select
                   value={form.languageCode}
                   onChange={(event) => setForm((prev) => ({ ...prev, languageCode: event.target.value as LanguageCode }))}
@@ -389,9 +399,8 @@ export default function TemplatesPage() {
                   <option value="TR">TR</option>
                   <option value="EN">EN</option>
                 </Select>
-              </div>
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.difficultyField}</label>
+              </FormField>
+              <FormField label={t.templates.difficultyField}>
                 <Select
                   value={form.difficultyLevel}
                   onChange={(event) =>
@@ -401,9 +410,8 @@ export default function TemplatesPage() {
                   <option value="AMATEUR">AMATEUR</option>
                   <option value="PROFESSIONAL">PROFESSIONAL</option>
                 </Select>
-              </div>
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.aiProviderField}</label>
+              </FormField>
+              <FormField label={t.templates.aiProviderField}>
                 <Select
                   value={form.aiProvider}
                   onChange={(event) => setForm((prev) => ({ ...prev, aiProvider: event.target.value as AiProvider }))}
@@ -413,18 +421,17 @@ export default function TemplatesPage() {
                   <option value="anthropic">anthropic</option>
                   <option value="stub">stub</option>
                 </Select>
-              </div>
+              </FormField>
             </div>
 
             <div className="grid gap-3 lg:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.aiModelField}</label>
+              <FormField label={t.templates.aiModelField}>
                 <Input
                   value={form.aiModel}
                   onChange={(event) => setForm((prev) => ({ ...prev, aiModel: event.target.value }))}
                   placeholder="gemini-2.5-pro"
                 />
-              </div>
+              </FormField>
               <div className="flex items-end">
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface/50 px-3 py-2 text-sm text-text">
                   <input
@@ -480,15 +487,42 @@ export default function TemplatesPage() {
 
         {!loading && !templates.length ? (
           <Card>
-            <p className="text-sm font-medium text-text">{t.templates.noData}</p>
-            <p className="mt-1 text-xs text-muted">{t.templates.noDataHint}</p>
+            <EmptyState
+              icon={Sparkles}
+              title={t.templates.noData}
+              description={t.templates.noDataHint}
+            />
           </Card>
         ) : null}
 
         {templates.length ? (
           <Card>
+            {/* Search & Filter toolbar */}
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder={t.search.placeholder}
+                className="sm:max-w-xs"
+              />
+              <Select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as TemplateStatus | "")}
+                className="sm:max-w-[180px]"
+              >
+                <option value="">{t.filter.all} — {t.filter.status}</option>
+                {(["GENERATING", "READY", "FAILED"] as TemplateStatus[]).map((s) => (
+                  <option key={s} value={s}>{t.templates.statuses[s]}</option>
+                ))}
+              </Select>
+            </div>
+
+            {filteredTemplates.length === 0 ? (
+              <EmptyState icon={Sparkles} title={t.search.noResults} />
+            ) : (
+              <>
             <div className="space-y-3">
-              {templates.map((item) => (
+              {pag.paginated.map((item) => (
                 <div key={item.id} className="rounded-xl border border-border bg-surface/50 p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -569,6 +603,31 @@ export default function TemplatesPage() {
                 </div>
               ))}
             </div>
+
+            {/* Pagination */}
+            <div className="mt-4">
+              <Pagination
+                page={pag.page}
+                totalPages={pag.totalPages}
+                rangeStart={pag.rangeStart}
+                rangeEnd={pag.rangeEnd}
+                total={pag.total}
+                pageSize={pag.pageSize}
+                hasNext={pag.hasNext}
+                hasPrev={pag.hasPrev}
+                onPageChange={pag.setPage}
+                onPageSizeChange={pag.setPageSize}
+                labels={{
+                  showing: t.pagination.showing,
+                  of: t.pagination.of,
+                  perPage: t.pagination.perPage,
+                  previous: t.pagination.previous,
+                  next: t.pagination.next
+                }}
+              />
+            </div>
+              </>
+            )}
           </Card>
         ) : null}
       </div>

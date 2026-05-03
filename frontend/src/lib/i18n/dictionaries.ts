@@ -268,6 +268,33 @@ export const dictionaries = {
         READY: "Hazır",
         FAILED: "Başarısız"
       }
+    },
+    validation: {
+      required: "Bu alan zorunlu",
+      minLength: "En az {n} karakter gerekli",
+      maxLength: "En fazla {n} karakter",
+      invalidEmail: "Geçersiz e-posta adresi",
+      invalidUrl: "Geçersiz URL",
+      invalidDomain: "Geçersiz domain"
+    },
+    pagination: {
+      previous: "Önceki",
+      next: "Sonraki",
+      showing: "Gösterilen",
+      of: "/",
+      perPage: "sayfa başına"
+    },
+    search: {
+      placeholder: "Ara...",
+      noResults: "Sonuç bulunamadı",
+      clearSearch: "Aramayı temizle"
+    },
+    filter: {
+      all: "Tümü",
+      status: "Durum",
+      department: "Departman",
+      active: "Aktif",
+      passive: "Pasif"
     }
   },
   en: {
@@ -537,6 +564,33 @@ export const dictionaries = {
         READY: "Ready",
         FAILED: "Failed"
       }
+    },
+    validation: {
+      required: "This field is required",
+      minLength: "At least {n} characters required",
+      maxLength: "Maximum {n} characters",
+      invalidEmail: "Invalid email address",
+      invalidUrl: "Invalid URL",
+      invalidDomain: "Invalid domain"
+    },
+    pagination: {
+      previous: "Previous",
+      next: "Next",
+      showing: "Showing",
+      of: "of",
+      perPage: "per page"
+    },
+    search: {
+      placeholder: "Search...",
+      noResults: "No results found",
+      clearSearch: "Clear search"
+    },
+    filter: {
+      all: "All",
+      status: "Status",
+      department: "Department",
+      active: "Active",
+      passive: "Passive"
     }
   }
 } as const;

@@ -6,19 +6,27 @@ import { BarChart3, CalendarClock, CheckCircle2, Megaphone, RefreshCw, Target, T
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
+import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import type {
   CampaignFunnelResponse,
   CampaignResponse,
+  CampaignStatus,
   CampaignTargetingType,
   EmployeeResponse,
   PhishingTemplateResponse,
   TrackingEventResponse,
   TrackingEventType
 } from "@/lib/api/types";
+import { usePagination } from "@/lib/hooks/use-pagination";
+import { useSearch } from "@/lib/hooks/use-search";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
 
@@ -145,6 +153,23 @@ export default function CampaignsPage() {
     [campaigns]
   );
 
+  // ── Search & Filter ────────────────────────────────────────────────
+  const [statusFilter, setStatusFilter] = useState<CampaignStatus | "">("")
+  const { filtered: searchedCampaigns, query: searchQuery, setQuery: setSearchQuery } = useSearch(sortedCampaigns, {
+    keys: ["name", "id", "targetingType"],
+    debounceMs: 200
+  });
+
+  const filteredCampaigns = useMemo(
+    () => statusFilter ? searchedCampaigns.filter((c) => c.status === statusFilter) : searchedCampaigns,
+    [searchedCampaigns, statusFilter]
+  );
+
+  const pag = usePagination(filteredCampaigns, { defaultPageSize: 10 });
+
+  // ── Delete dialog ──────────────────────────────────────────────────
+  const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
+
   const upsertCampaign = (updated: CampaignResponse) => {
     setCampaigns((prev) => {
       const exists = prev.some((item) => item.id === updated.id);
@@ -235,7 +260,7 @@ export default function CampaignsPage() {
 
     const name = form.name.trim();
     if (!name) {
-      setCreateError(`${t.campaigns.campaignName} is required`);
+      setCreateError(t.validation.required);
       return;
     }
 
@@ -245,12 +270,12 @@ export default function CampaignsPage() {
     }
 
     if (form.targetingType === "DEPARTMENT" && !form.targetDepartment.trim()) {
-      setCreateError(`${t.campaigns.targetDepartmentInput} is required`);
+      setCreateError(t.validation.required);
       return;
     }
 
     if (form.targetingType === "INDIVIDUAL" && form.targetEmployeeIds.length === 0) {
-      setCreateError(`${t.campaigns.targetEmployees} is required`);
+      setCreateError(t.validation.required);
       return;
     }
 
@@ -358,10 +383,7 @@ export default function CampaignsPage() {
   };
 
   const handleDeleteCampaign = async (campaignId: string) => {
-    if (!window.confirm(t.campaigns.deleteConfirm)) {
-      return;
-    }
-
+    setDeleteDialogId(null);
     setActionError(null);
     setActionSuccess(null);
     setDeletingCampaignId(campaignId);
@@ -445,17 +467,15 @@ export default function CampaignsPage() {
 
           <form className="space-y-4" onSubmit={(event) => void handleCreateCampaign(event)}>
             <div className="grid gap-3 lg:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.campaigns.campaignName}</label>
+              <FormField label={t.campaigns.campaignName} required>
                 <Input
                   value={form.name}
                   onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                   placeholder="Q3 Finance Simulation"
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.campaigns.template}</label>
+              <FormField label={t.campaigns.template} required>
                 <Select
                   value={form.templateId}
                   onChange={(event) => setForm((prev) => ({ ...prev, templateId: event.target.value }))}
@@ -468,12 +488,11 @@ export default function CampaignsPage() {
                   ))}
                 </Select>
                 {!readyTemplates.length ? <p className="mt-1 text-xs text-amber-300">{t.campaigns.noReadyTemplates}</p> : null}
-              </div>
+              </FormField>
             </div>
 
             <div className="grid gap-3 lg:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.campaigns.targetingTypeLabel}</label>
+              <FormField label={t.campaigns.targetingTypeLabel}>
                 <Select
                   value={form.targetingType}
                   onChange={(event) =>
@@ -490,7 +509,7 @@ export default function CampaignsPage() {
                   <option value="INDIVIDUAL">{t.campaigns.individual}</option>
                   <option value="HIGH_RISK">{t.campaigns.highRisk}</option>
                 </Select>
-              </div>
+              </FormField>
 
               <div className="flex items-end">
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface/50 px-3 py-2 text-sm text-text">
@@ -505,8 +524,7 @@ export default function CampaignsPage() {
             </div>
 
             {form.targetingType === "DEPARTMENT" ? (
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.campaigns.targetDepartmentInput}</label>
+              <FormField label={t.campaigns.targetDepartmentInput} required>
                 <Select
                   value={form.targetDepartment}
                   onChange={(event) => setForm((prev) => ({ ...prev, targetDepartment: event.target.value }))}
@@ -518,12 +536,11 @@ export default function CampaignsPage() {
                     </option>
                   ))}
                 </Select>
-              </div>
+              </FormField>
             ) : null}
 
             {form.targetingType === "INDIVIDUAL" ? (
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.campaigns.targetEmployees}</label>
+              <FormField label={t.campaigns.targetEmployees} required hint="Ctrl/Cmd + click">
                 <Select
                   className="h-32"
                   multiple
@@ -541,8 +558,7 @@ export default function CampaignsPage() {
                     </option>
                   ))}
                 </Select>
-                <p className="mt-1 text-xs text-muted">Ctrl/Cmd + click</p>
-              </div>
+              </FormField>
             ) : null}
 
             {createError ? (
@@ -594,15 +610,42 @@ export default function CampaignsPage() {
 
         {!loading && !campaigns.length ? (
           <Card>
-            <p className="text-sm font-medium text-text">{t.campaigns.noData}</p>
-            <p className="mt-1 text-xs text-muted">{t.campaigns.noDataHint}</p>
+            <EmptyState
+              icon={Megaphone}
+              title={t.campaigns.noData}
+              description={t.campaigns.noDataHint}
+            />
           </Card>
         ) : null}
 
         {sortedCampaigns.length ? (
           <Card>
-            <div className="space-y-3">
-              {sortedCampaigns.map((item) => (
+            {/* Search & Filter toolbar */}
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder={t.search.placeholder}
+                className="sm:max-w-xs"
+              />
+              <Select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as CampaignStatus | "")}
+                className="sm:max-w-[180px]"
+              >
+                <option value="">{t.filter.all} — {t.filter.status}</option>
+                {(["DRAFT", "GENERATING", "READY", "SCHEDULED", "IN_PROGRESS", "COMPLETED", "FAILED", "CANCELED"] as CampaignStatus[]).map((s) => (
+                  <option key={s} value={s}>{t.campaigns.statuses[s]}</option>
+                ))}
+              </Select>
+            </div>
+
+            {filteredCampaigns.length === 0 ? (
+              <EmptyState icon={Megaphone} title={t.search.noResults} />
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {pag.paginated.map((item) => (
                 <div key={item.id} className="rounded-xl border border-border bg-surface/50 p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -704,7 +747,7 @@ export default function CampaignsPage() {
                     {item.status !== "IN_PROGRESS" && item.status !== "SCHEDULED" ? (
                       <Button
                         variant="danger"
-                        onClick={() => void handleDeleteCampaign(item.id)}
+                        onClick={() => setDeleteDialogId(item.id)}
                         disabled={deletingCampaignId !== null || pendingActionKey !== null}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
@@ -815,10 +858,56 @@ export default function CampaignsPage() {
                     </div>
                   ) : null}
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              <div className="mt-4">
+                <Pagination
+                  page={pag.page}
+                  totalPages={pag.totalPages}
+                  rangeStart={pag.rangeStart}
+                  rangeEnd={pag.rangeEnd}
+                  total={pag.total}
+                  pageSize={pag.pageSize}
+                  hasNext={pag.hasNext}
+                  hasPrev={pag.hasPrev}
+                  onPageChange={pag.setPage}
+                  onPageSizeChange={pag.setPageSize}
+                  labels={{
+                    showing: t.pagination.showing,
+                    of: t.pagination.of,
+                    perPage: t.pagination.perPage,
+                    previous: t.pagination.previous,
+                    next: t.pagination.next
+                  }}
+                />
+              </div>
+              </>
+            )}
           </Card>
         ) : null}
+
+        {/* Delete confirmation dialog */}
+        <Dialog
+          open={deleteDialogId !== null}
+          onClose={() => setDeleteDialogId(null)}
+          title={t.campaigns.deleteConfirm}
+        >
+          <p className="text-sm text-muted">{t.campaigns.deleteConfirm}</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setDeleteDialogId(null)}>
+              {t.common.cancel}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => { if (deleteDialogId) void handleDeleteCampaign(deleteDialogId); }}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t.campaigns.deleteAction}
+            </Button>
+          </div>
+        </Dialog>
       </div>
   );
 }
