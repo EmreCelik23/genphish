@@ -71,4 +71,6 @@ temp/
 **/.nuxt/
 **/.parcel-cache/
 **/.turbo/
+**/.npm-cache/
 **/.eslintcache
+**/*.tsbuildinfo

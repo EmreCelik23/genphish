@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-space-grotesk: "Sora", "Manrope", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-plex-mono: "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  --surface: #f7f7f5;
+  --panel: rgba(255, 255, 255, 0.86);
+  --panel-hover: rgba(12, 14, 18, 0.05);
+  --border: rgba(21, 24, 30, 0.1);
+  --text: #0d131f;
+  --muted: #5b6474;
+  --accent: #0884d8;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --grid: rgba(17, 22, 31, 0.045);
+  --button-bg: #0f172a;
+  --button-bg-hover: #16203a;
+  --button-border: rgba(15, 23, 42, 0.55);
+  --button-text: #f8fafc;
+}
+
+:root[data-theme="dark"] {
+  --surface: #09090b;
+  --panel: rgba(17, 20, 28, 0.84);
+  --panel-hover: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.095);
+  --text: #f4f7fb;
+  --muted: #9ca7bb;
+  --accent: #38bdf8;
+  --danger: #f87171;
+  --success: #4ade80;
+  --grid: rgba(255, 255, 255, 0.035);
+  --button-bg: #111827;
+  --button-bg-hover: #1f2937;
+  --button-border: rgba(148, 163, 184, 0.3);
+  --button-text: #f8fafc;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--surface);
+  color: var(--text);
+  background-image: radial-gradient(circle at 10% -10%, rgba(56, 189, 248, 0.08), transparent 24%),
+    radial-gradient(circle at 90% -20%, rgba(148, 163, 184, 0.1), transparent 32%);
+}
+
+[data-density="compact"] {
+  --density-pad: 0.75rem;
+}
+
+[data-density="comfortable"] {
+  --density-pad: 1rem;
+}
+
+.grid-overlay {
+  background-image: linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
