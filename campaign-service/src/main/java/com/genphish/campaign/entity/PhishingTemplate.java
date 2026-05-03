@@ -27,10 +27,10 @@ public class PhishingTemplate {
     @Column(name = "company_id")
     private UUID companyId; // Null for global static templates
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String name; // e.g., "Microsoft 365 Password Reset"
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String category; // e.g., "IT", "HR", "Finance", "AI Generated"
 
     @Enumerated(EnumType.STRING)
@@ -50,7 +50,7 @@ public class PhishingTemplate {
 
     // ── Content ──
 
-    @Column(name = "email_subject")
+    @Column(name = "email_subject", columnDefinition = "TEXT")
     private String emailSubject; // Nullable while generating
 
     @Column(name = "email_body", columnDefinition = "TEXT")
@@ -72,13 +72,13 @@ public class PhishingTemplate {
     @Column(name = "ai_prompt", columnDefinition = "TEXT")
     private String prompt; 
 
-    @Column(name = "target_url")
+    @Column(name = "target_url", columnDefinition = "TEXT")
     private String targetUrl; 
 
-    @Column(name = "reference_image_url")
+    @Column(name = "reference_image_url", columnDefinition = "TEXT")
     private String referenceImageUrl;
 
-    @Column(name = "mongo_template_id")
+    @Column(name = "mongo_template_id", columnDefinition = "TEXT")
     private String mongoTemplateId; 
 
     @Column(name = "fallback_content_used")
