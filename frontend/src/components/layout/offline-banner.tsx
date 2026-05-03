@@ -9,13 +9,12 @@ import { WifiOff, X } from "lucide-react";
  * Automatically hides when the connection is restored.
  */
 export function OfflineBanner() {
-  const [isOffline, setIsOffline] = useState(false);
+  const [isOffline, setIsOffline] = useState(() =>
+    typeof navigator !== "undefined" ? !navigator.onLine : false
+  );
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    // Initialise with current state
-    setIsOffline(!navigator.onLine);
-
     const handleOffline = () => {
       setIsOffline(true);
       setDismissed(false); // re-show if dismissed earlier

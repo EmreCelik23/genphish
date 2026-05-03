@@ -23,10 +23,12 @@ export function usePolling(fn: () => void | Promise<void>, options: PollingOptio
   const { intervalMs = 5000, enabled = true } = options;
 
   const fnRef = useRef(fn);
-  fnRef.current = fn;
-
-  const [isPolling, setIsPolling] = useState(enabled);
+  const [isPolling, setIsPolling] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    fnRef.current = fn;
+  }, [fn]);
 
   const clear = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -56,11 +58,6 @@ export function usePolling(fn: () => void | Promise<void>, options: PollingOptio
 
     return clear;
   }, [isPolling, enabled, intervalMs, clear]);
-
-  // Sync external `enabled` toggle
-  useEffect(() => {
-    setIsPolling(enabled);
-  }, [enabled]);
 
   return { isPolling: isPolling && enabled, start, stop };
 }

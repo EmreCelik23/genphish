@@ -152,44 +152,6 @@ export default function CampaignsPage() {
     [campaigns]
   );
 
-  // ── Search & Filter ────────────────────────────────────────────────
-  const [statusFilter, setStatusFilter] = useState<CampaignStatus | "">("")
-  const { filtered: searchedCampaigns, query: searchQuery, setQuery: setSearchQuery } = useSearch(sortedCampaigns, {
-    keys: ["name", "id", "targetingType"],
-    debounceMs: 200
-  });
-
-  const filteredCampaigns = useMemo(
-    () => statusFilter ? searchedCampaigns.filter((c) => c.status === statusFilter) : searchedCampaigns,
-    [searchedCampaigns, statusFilter]
-  );
-
-  const pag = usePagination(filteredCampaigns, { defaultPageSize: 10 });
-
-  // ── Auto-refresh polling (GENERATING / IN_PROGRESS campaigns) ────────
-  const hasActiveCampaigns = useMemo(
-    () => campaigns.some((c) => c.status === "GENERATING" || c.status === "IN_PROGRESS"),
-    [campaigns]
-  );
-
-  const { isPolling } = usePolling(
-    useCallback(() => { void fetchCampaignData(); }, []),
-    { intervalMs: 5000, enabled: hasActiveCampaigns }
-  );
-
-  // ── Delete dialog ──────────────────────────────────────────────────
-  const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
-
-  const upsertCampaign = (updated: CampaignResponse) => {
-    setCampaigns((prev) => {
-      const exists = prev.some((item) => item.id === updated.id);
-      if (!exists) {
-        return [updated, ...prev];
-      }
-      return prev.map((item) => (item.id === updated.id ? updated : item));
-    });
-  };
-
   const fetchCampaignData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -223,6 +185,41 @@ export default function CampaignsPage() {
       setLoading(false);
     }
   }, [api, t.common.unknownError]);
+
+  // ── Search & Filter ────────────────────────────────────────────────
+  const [statusFilter, setStatusFilter] = useState<CampaignStatus | "">("");
+  const { filtered: searchedCampaigns, query: searchQuery, setQuery: setSearchQuery } = useSearch(sortedCampaigns, {
+    keys: ["name", "id", "targetingType"],
+    debounceMs: 200
+  });
+
+  const filteredCampaigns = useMemo(
+    () => statusFilter ? searchedCampaigns.filter((c) => c.status === statusFilter) : searchedCampaigns,
+    [searchedCampaigns, statusFilter]
+  );
+
+  const pag = usePagination(filteredCampaigns, { defaultPageSize: 10 });
+
+  // ── Auto-refresh polling (GENERATING / IN_PROGRESS campaigns) ────────
+  const hasActiveCampaigns = useMemo(
+    () => campaigns.some((c) => c.status === "GENERATING" || c.status === "IN_PROGRESS"),
+    [campaigns]
+  );
+
+  const { isPolling } = usePolling(fetchCampaignData, { intervalMs: 5000, enabled: hasActiveCampaigns });
+
+  // ── Delete dialog ──────────────────────────────────────────────────
+  const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
+
+  const upsertCampaign = (updated: CampaignResponse) => {
+    setCampaigns((prev) => {
+      const exists = prev.some((item) => item.id === updated.id);
+      if (!exists) {
+        return [updated, ...prev];
+      }
+      return prev.map((item) => (item.id === updated.id ? updated : item));
+    });
+  };
 
   useEffect(() => {
     // Trigger initial fetch.

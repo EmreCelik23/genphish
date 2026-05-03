@@ -6,7 +6,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState
 } from "react";
 
@@ -54,7 +53,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>(emptyAuth);
   const [sessionWarning, setSessionWarning] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const logoutRef = useRef<() => void>();
 
   // ── Hydrate from storage on mount ──────────────────────────────────
 
@@ -95,8 +93,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearSession();
   }, []);
 
-  logoutRef.current = logout;
-
   // ── Session expiry checker ─────────────────────────────────────────
 
   useEffect(() => {
@@ -106,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const check = () => {
       if (isTokenExpired(auth.expiresAt)) {
-        logoutRef.current?.();
+        logout();
         return;
       }
 
@@ -117,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     check();
     const intervalId = window.setInterval(check, CHECK_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
-  }, [auth.isAuthenticated, auth.expiresAt]);
+  }, [auth.isAuthenticated, auth.expiresAt, logout]);
 
   // ── Role check helper ──────────────────────────────────────────────
 
