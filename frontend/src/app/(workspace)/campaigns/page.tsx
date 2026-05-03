@@ -3,15 +3,13 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart3, CalendarClock, CheckCircle2, Megaphone, RefreshCw, Target, Trash2, Users } from "lucide-react";
 
-import { RequireAccess } from "@/components/layout/require-access";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiClient } from "@/lib/api/client";
-import { createApiServices } from "@/lib/api/services";
+import { useApi } from "@/lib/api/use-api";
 import type {
   CampaignFunnelResponse,
   CampaignResponse,
@@ -23,7 +21,6 @@ import type {
 } from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
-import type { AppSettings } from "@/lib/settings/types";
 
 type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
 type CampaignAction = "start" | "schedule" | "cancel";
@@ -94,21 +91,10 @@ function CampaignListSkeleton() {
 }
 
 export default function CampaignsPage() {
+  const { api } = useApi();
   const { settings } = useSettings();
   const { t } = useI18n();
   const locale = settings.language === "tr" ? "tr-TR" : "en-US";
-
-  const apiSettings = useMemo<AppSettings>(
-    () => ({
-      theme: "system",
-      language: "tr",
-      density: "comfortable",
-      apiBaseUrl: settings.apiBaseUrl,
-      apiToken: settings.apiToken,
-      companyId: settings.companyId
-    }),
-    [settings.apiBaseUrl, settings.apiToken, settings.companyId]
-  );
 
   const [campaigns, setCampaigns] = useState<CampaignResponse[]>([]);
   const [templates, setTemplates] = useState<PhishingTemplateResponse[]>([]);
@@ -138,8 +124,6 @@ export default function CampaignsPage() {
     targetEmployeeIds: [],
     qrCodeEnabled: false
   });
-
-  const canFetch = Boolean(apiSettings.companyId && apiSettings.apiToken);
 
   const readyTemplates = useMemo(() => templates.filter((item) => item.status === "READY"), [templates]);
 
@@ -172,19 +156,13 @@ export default function CampaignsPage() {
   };
 
   const fetchCampaignData = useCallback(async () => {
-    if (!canFetch) {
-      return;
-    }
-
     setLoading(true);
     setError(null);
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
       const [campaignList, templateList, employeeList] = await Promise.all([
-        services.campaigns.list(),
-        services.templates.list(),
-        services.employees.list()
+        api.campaigns.list(),
+        api.templates.list(),
+        api.employees.list()
       ]);
       setCampaigns(campaignList);
       setTemplates(templateList);
@@ -209,16 +187,13 @@ export default function CampaignsPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiSettings, canFetch, t.common.unknownError]);
+  }, [api, t.common.unknownError]);
 
   useEffect(() => {
-    if (!canFetch) {
-      return;
-    }
-    // Trigger initial fetch when access credentials are available.
+    // Trigger initial fetch.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchCampaignData();
-  }, [canFetch, fetchCampaignData]);
+  }, [fetchCampaignData]);
 
   const targetingLabel = (targetingType: CampaignResponse["targetingType"]) => {
     switch (targetingType) {
@@ -254,9 +229,6 @@ export default function CampaignsPage() {
 
   const handleCreateCampaign = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canFetch) {
-      return;
-    }
 
     setCreateError(null);
     setCreateSuccess(null);
@@ -284,10 +256,7 @@ export default function CampaignsPage() {
 
     setCreating(true);
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-
-      const created = await services.campaigns.create({
+      const created = await api.campaigns.create({
         name,
         templateId: form.templateId,
         targetingType: form.targetingType,
@@ -314,10 +283,6 @@ export default function CampaignsPage() {
   };
 
   const runCampaignAction = async (campaignId: string, action: CampaignAction) => {
-    if (!canFetch) {
-      return;
-    }
-
     setActionError(null);
     setActionSuccess(null);
 
@@ -325,15 +290,13 @@ export default function CampaignsPage() {
     setPendingActionKey(actionKey);
 
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
       let updated: CampaignResponse;
 
       if (action === "start") {
-        updated = await services.campaigns.start(campaignId);
+        updated = await api.campaigns.start(campaignId);
         setActionSuccess(t.campaigns.startSuccess);
       } else if (action === "cancel") {
-        updated = await services.campaigns.cancel(campaignId);
+        updated = await api.campaigns.cancel(campaignId);
         setActionSuccess(t.campaigns.cancelSuccess);
       } else {
         const scheduledFor = scheduleDrafts[campaignId];
@@ -341,7 +304,7 @@ export default function CampaignsPage() {
           setActionError(`${t.campaigns.scheduledForInput} is required`);
           return;
         }
-        updated = await services.campaigns.schedule(campaignId, { scheduledFor });
+        updated = await api.campaigns.schedule(campaignId, { scheduledFor });
         setActionSuccess(t.campaigns.scheduleSuccess);
       }
 
@@ -360,19 +323,13 @@ export default function CampaignsPage() {
 
   const fetchCampaignAnalytics = useCallback(
     async (campaignId: string) => {
-      if (!canFetch) {
-        return;
-      }
-
       setAnalyticsError(null);
       setAnalyticsLoadingCampaignId(campaignId);
 
       try {
-        const client = new ApiClient(apiSettings);
-        const services = createApiServices(client, apiSettings.companyId);
         const [funnel, events] = await Promise.all([
-          services.analytics.campaignFunnel(campaignId),
-          services.analytics.campaignEvents(campaignId)
+          api.analytics.campaignFunnel(campaignId),
+          api.analytics.campaignEvents(campaignId)
         ]);
         setCampaignFunnels((prev) => ({ ...prev, [campaignId]: funnel }));
         setCampaignEvents((prev) => ({ ...prev, [campaignId]: events }));
@@ -383,7 +340,7 @@ export default function CampaignsPage() {
         setAnalyticsLoadingCampaignId(null);
       }
     },
-    [apiSettings, canFetch, t.common.unknownError]
+    [api, t.common.unknownError]
   );
 
   const toggleAnalytics = async (campaignId: string) => {
@@ -401,10 +358,6 @@ export default function CampaignsPage() {
   };
 
   const handleDeleteCampaign = async (campaignId: string) => {
-    if (!canFetch) {
-      return;
-    }
-
     if (!window.confirm(t.campaigns.deleteConfirm)) {
       return;
     }
@@ -414,9 +367,7 @@ export default function CampaignsPage() {
     setDeletingCampaignId(campaignId);
 
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      await services.campaigns.delete(campaignId);
+      await api.campaigns.delete(campaignId);
 
       setCampaigns((prev) => prev.filter((item) => item.id !== campaignId));
       setCampaignFunnels((prev) => {
@@ -469,7 +420,6 @@ export default function CampaignsPage() {
   const isPending = (campaignId: string, action: CampaignAction) => pendingActionKey === `${campaignId}:${action}`;
 
   return (
-    <RequireAccess>
       <div className="space-y-4 lg:space-y-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -870,6 +820,5 @@ export default function CampaignsPage() {
           </Card>
         ) : null}
       </div>
-    </RequireAccess>
   );
 }

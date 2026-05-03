@@ -15,16 +15,13 @@ import {
   YAxis
 } from "recharts";
 
-import { RequireAccess } from "@/components/layout/require-access";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiClient } from "@/lib/api/client";
-import { createApiServices } from "@/lib/api/services";
+import { useApi } from "@/lib/api/use-api";
 import type { DashboardResponse } from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
-import { useSettings } from "@/lib/settings/settings-context";
 
 type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
 
@@ -125,9 +122,8 @@ function DashboardSkeleton() {
 }
 
 export default function DashboardPage() {
-  const { settings } = useSettings();
+  const { api } = useApi();
   const { t } = useI18n();
-  const canFetch = Boolean(settings.companyId && settings.apiToken);
 
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -137,10 +133,6 @@ export default function DashboardPage() {
 
   const fetchDashboard = useCallback(
     async (silent = false) => {
-      if (!canFetch) {
-        return;
-      }
-
       if (silent) {
         setRefreshing(true);
       } else {
@@ -149,9 +141,7 @@ export default function DashboardPage() {
 
       setError(null);
       try {
-        const client = new ApiClient(settings);
-        const services = createApiServices(client, settings.companyId);
-        const response = await services.dashboard.get();
+        const response = await api.dashboard.get();
         setData(response);
         setLastUpdated(new Date());
       } catch (fetchError) {
@@ -165,13 +155,10 @@ export default function DashboardPage() {
         }
       }
     },
-    [canFetch, settings, t.common.unknownError]
+    [api, t.common.unknownError]
   );
 
   useEffect(() => {
-    if (!canFetch) {
-      return;
-    }
     // Initial dashboard load and periodic refresh loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchDashboard(false);
@@ -182,7 +169,7 @@ export default function DashboardPage() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [canFetch, fetchDashboard]);
+  }, [fetchDashboard]);
 
   const departmentChart = useMemo(
     () =>
@@ -236,7 +223,6 @@ export default function DashboardPage() {
   }, [data]);
 
   return (
-    <RequireAccess>
       <motion.div initial="hidden" animate="visible" transition={{ staggerChildren: 0.06 }} className="space-y-4 lg:space-y-6">
         <motion.div variants={itemVariants}>
           <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
@@ -413,6 +399,5 @@ export default function DashboardPage() {
           </>
         ) : null}
       </motion.div>
-    </RequireAccess>
   );
 }

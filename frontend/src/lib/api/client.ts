@@ -1,4 +1,4 @@
-import { AppSettings } from "@/lib/settings/types";
+import type { AppSettings } from "@/lib/settings/types";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -14,11 +14,45 @@ export class ApiError extends Error {
   }
 }
 
-export class ApiClient {
-  private readonly settings: AppSettings;
+type ApiClientConfig = {
+  apiBaseUrl: string;
+  apiToken: string;
+  companyId: string;
+  onUnauthorized?: () => void;
+  onForbidden?: (detail?: unknown) => void;
+};
 
-  constructor(settings: AppSettings) {
-    this.settings = settings;
+/**
+ * Build config from settings + auth overrides.
+ * Keeps backward compat: if you pass AppSettings it still works.
+ */
+export function buildApiConfig(
+  settings: AppSettings,
+  overrides?: { token?: string; companyId?: string; onUnauthorized?: () => void; onForbidden?: (detail?: unknown) => void }
+): ApiClientConfig {
+  return {
+    apiBaseUrl: settings.apiBaseUrl,
+    apiToken: overrides?.token ?? (settings as Record<string, string>).apiToken ?? "",
+    companyId: overrides?.companyId ?? (settings as Record<string, string>).companyId ?? "",
+    onUnauthorized: overrides?.onUnauthorized,
+    onForbidden: overrides?.onForbidden
+  };
+}
+
+export class ApiClient {
+  private readonly config: ApiClientConfig;
+
+  constructor(config: ApiClientConfig | AppSettings) {
+    // Accept either shape
+    if ("apiBaseUrl" in config && "apiToken" in config) {
+      this.config = config as ApiClientConfig;
+    } else {
+      this.config = {
+        apiBaseUrl: (config as AppSettings).apiBaseUrl,
+        apiToken: (config as Record<string, string>).apiToken ?? "",
+        companyId: (config as Record<string, string>).companyId ?? ""
+      };
+    }
   }
 
   get<T>(path: string): Promise<T> {
@@ -42,7 +76,7 @@ export class ApiClient {
   }
 
   private async request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
-    const base = this.settings.apiBaseUrl.replace(/\/$/, "");
+    const base = this.config.apiBaseUrl.replace(/\/$/, "");
     const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
     const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
@@ -52,13 +86,13 @@ export class ApiClient {
       headers["Content-Type"] = "application/json";
     }
 
-    if (this.settings.apiToken) {
-      headers.Authorization = `Bearer ${this.settings.apiToken}`;
-      headers["X-Service-Token"] = this.settings.apiToken;
+    if (this.config.apiToken) {
+      headers.Authorization = `Bearer ${this.config.apiToken}`;
+      headers["X-Service-Token"] = this.config.apiToken;
     }
 
-    if (this.settings.companyId) {
-      headers["X-Company-Id"] = this.settings.companyId;
+    if (this.config.companyId) {
+      headers["X-Company-Id"] = this.config.companyId;
     }
 
     const response = await fetch(url, {
@@ -76,6 +110,15 @@ export class ApiClient {
       } catch {
         parsed = text;
       }
+
+      // ── Error interceptors ─────────────────────────────────
+      if (response.status === 401) {
+        this.config.onUnauthorized?.();
+      }
+      if (response.status === 403) {
+        this.config.onForbidden?.(parsed);
+      }
+
       throw new ApiError(response.status, `Request failed (${response.status})`, parsed);
     }
 

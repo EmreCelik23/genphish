@@ -1,20 +1,17 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { CircleUserRound, RefreshCw, ShieldAlert, Upload, UserPlus, UserX, UsersRound } from "lucide-react";
 
-import { RequireAccess } from "@/components/layout/require-access";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiClient } from "@/lib/api/client";
-import { createApiServices } from "@/lib/api/services";
+import { useApi } from "@/lib/api/use-api";
 import type { EmployeeResponse, EmployeeRiskProfileResponse, ImportResultResponse } from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
-import type { AppSettings } from "@/lib/settings/types";
 
 type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
 
@@ -50,20 +47,9 @@ function EmployeeListSkeleton() {
 }
 
 export default function EmployeesPage() {
+  const { api } = useApi();
   const { settings } = useSettings();
   const { t } = useI18n();
-
-  const apiSettings = useMemo<AppSettings>(
-    () => ({
-      theme: "system",
-      language: "tr",
-      density: "comfortable",
-      apiBaseUrl: settings.apiBaseUrl,
-      apiToken: settings.apiToken,
-      companyId: settings.companyId
-    }),
-    [settings.apiBaseUrl, settings.apiToken, settings.companyId]
-  );
 
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -93,20 +79,13 @@ export default function EmployeesPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [riskProfiles, setRiskProfiles] = useState<Record<string, EmployeeRiskProfileResponse>>({});
 
-  const canFetch = Boolean(apiSettings.companyId && apiSettings.apiToken);
   const locale = settings.language === "tr" ? "tr-TR" : "en-US";
 
   const fetchEmployees = useCallback(async () => {
-    if (!canFetch) {
-      return;
-    }
-
     setLoading(true);
     setError(null);
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      const response = await services.employees.list();
+      const response = await api.employees.list();
       setEmployees(response);
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : t.common.unknownError;
@@ -114,22 +93,15 @@ export default function EmployeesPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiSettings, canFetch, t.common.unknownError]);
+  }, [api, t.common.unknownError]);
 
   useEffect(() => {
-    if (!canFetch) {
-      return;
-    }
-    // Trigger initial fetch when access credentials are available.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchEmployees();
-  }, [canFetch, fetchEmployees]);
+  }, [fetchEmployees]);
 
   const handleCreateEmployee = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canFetch) {
-      return;
-    }
 
     setCreateError(null);
     setCreateSuccess(null);
@@ -158,9 +130,7 @@ export default function EmployeesPage() {
 
     setCreating(true);
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      const created = await services.employees.create({
+      const created = await api.employees.create({
         firstName,
         lastName,
         email,
@@ -183,10 +153,6 @@ export default function EmployeesPage() {
   };
 
   const handleImportEmployees = async () => {
-    if (!canFetch) {
-      return;
-    }
-
     setImportError(null);
     setImportSuccess(null);
 
@@ -197,14 +163,12 @@ export default function EmployeesPage() {
 
     setImporting(true);
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      const result = await services.employees.import(selectedImportFile);
+      const result = await api.employees.import(selectedImportFile);
       setImportResult(result);
       setImportSuccess(t.employees.importSuccess);
       setSelectedImportFile(null);
 
-      const updatedEmployees = await services.employees.list();
+      const updatedEmployees = await api.employees.list();
       setEmployees(updatedEmployees);
     } catch (importEmployeesError) {
       const message = importEmployeesError instanceof Error ? importEmployeesError.message : t.common.unknownError;
@@ -215,18 +179,12 @@ export default function EmployeesPage() {
   };
 
   const handleDeactivateEmployee = async (employeeId: string) => {
-    if (!canFetch) {
-      return;
-    }
-
     setActionError(null);
     setActionSuccess(null);
     setDeactivatingEmployeeId(employeeId);
 
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      await services.employees.deactivate(employeeId);
+      await api.employees.deactivate(employeeId);
       setEmployees((prev) => prev.map((item) => (item.id === employeeId ? { ...item, active: false } : item)));
       setActionSuccess(t.employees.deactivateSuccess);
     } catch (deactivateError) {
@@ -238,10 +196,6 @@ export default function EmployeesPage() {
   };
 
   const handleToggleRiskProfile = async (employeeId: string) => {
-    if (!canFetch) {
-      return;
-    }
-
     if (expandedProfileEmployeeId === employeeId) {
       setExpandedProfileEmployeeId(null);
       setProfileError(null);
@@ -257,9 +211,7 @@ export default function EmployeesPage() {
 
     setProfileLoadingEmployeeId(employeeId);
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      const profile = await services.employees.riskProfile(employeeId);
+      const profile = await api.employees.riskProfile(employeeId);
       setRiskProfiles((prev) => ({ ...prev, [employeeId]: profile }));
     } catch (fetchProfileError) {
       const message = fetchProfileError instanceof Error ? fetchProfileError.message : t.common.unknownError;
@@ -287,7 +239,6 @@ export default function EmployeesPage() {
   };
 
   return (
-    <RequireAccess>
       <div className="space-y-4 lg:space-y-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -549,6 +500,5 @@ export default function EmployeesPage() {
           </Card>
         ) : null}
       </div>
-    </RequireAccess>
   );
 }

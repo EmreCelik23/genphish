@@ -1,11 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { FileText, Home, Megaphone, Settings, Shield, Users, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { FileText, Home, LogOut, Megaphone, Settings, Shield, Users, X } from "lucide-react";
 
+import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Dialog } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth/auth-context";
 import { useI18n } from "@/lib/i18n/i18n-context";
-import { useSettings } from "@/lib/settings/settings-context";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -21,10 +26,30 @@ type SidebarProps = {
   onClose: () => void;
 };
 
+const roleTone = {
+  admin: "info" as const,
+  operator: "success" as const,
+  viewer: "neutral" as const
+};
+
 function SidebarContent({ onNavigate }: { onNavigate: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useI18n();
-  const { settings } = useSettings();
+  const { auth, logout } = useAuth();
+  const [showLogout, setShowLogout] = useState(false);
+
+  const roleLabel = auth.role === "admin"
+    ? t.auth.roleAdmin
+    : auth.role === "operator"
+      ? t.auth.roleOperator
+      : t.auth.roleViewer;
+
+  const handleLogout = () => {
+    logout();
+    setShowLogout(false);
+    router.push("/access");
+  };
 
   return (
     <>
@@ -62,16 +87,55 @@ function SidebarContent({ onNavigate }: { onNavigate: () => void }) {
       </nav>
 
       <div className="mt-auto space-y-3 px-6 py-6">
-        <div className="rounded-xl border border-border bg-surface/50 p-3">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Company Scope</p>
-          <p className="mt-1 truncate font-mono text-xs text-text">
-            {settings.companyId ? settings.companyId : "not configured"}
-          </p>
-        </div>
-        <Link href="/access" onClick={onNavigate} className="text-xs text-muted underline-offset-2 hover:text-text hover:underline">
-          {t.nav.access}
-        </Link>
+        {/* Session info */}
+        {auth.isAuthenticated ? (
+          <div className="rounded-xl border border-border bg-surface/50 p-3">
+            <div className="flex items-center gap-2.5">
+              <Avatar name={auth.companyName || "?"} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-text">
+                  {auth.companyName || "—"}
+                </p>
+                <Badge tone={roleTone[auth.role]} className="mt-1">
+                  {roleLabel}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Logout */}
+        {auth.isAuthenticated ? (
+          <button
+            onClick={() => setShowLogout(true)}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted transition hover:bg-[var(--panel-hover)] hover:text-text"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            {t.auth.logoutAction}
+          </button>
+        ) : (
+          <Link href="/access" onClick={onNavigate} className="text-xs text-muted underline-offset-2 hover:text-text hover:underline">
+            {t.common.goAccess}
+          </Link>
+        )}
       </div>
+
+      {/* Logout confirmation dialog */}
+      <Dialog
+        open={showLogout}
+        onClose={() => setShowLogout(false)}
+        title={t.auth.logoutAction}
+        description={t.auth.logoutConfirm}
+      >
+        <div className="flex gap-3">
+          <Button variant="ghost" className="flex-1" onClick={() => setShowLogout(false)}>
+            {t.common.cancel}
+          </Button>
+          <Button variant="danger" className="flex-1" onClick={handleLogout}>
+            {t.auth.logoutAction}
+          </Button>
+        </div>
+      </Dialog>
     </>
   );
 }

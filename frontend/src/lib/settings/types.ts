@@ -7,15 +7,11 @@ export type AppSettings = {
   language: Language;
   density: Density;
   apiBaseUrl: string;
-  apiToken: string;
-  companyId: string;
 };
 
 export const defaultSettings: AppSettings = {
   theme: "system",
   language: "tr",
   density: "comfortable",
-  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8088",
-  apiToken: "",
-  companyId: ""
+  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8088"
 };

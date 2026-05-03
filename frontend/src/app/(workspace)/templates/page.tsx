@@ -1,9 +1,8 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Languages, RefreshCw, ShieldCheck, Sparkles, Upload } from "lucide-react";
 
-import { RequireAccess } from "@/components/layout/require-access";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,8 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { ApiClient } from "@/lib/api/client";
-import { createApiServices } from "@/lib/api/services";
+import { useApi } from "@/lib/api/use-api";
 import type {
   AiProvider,
   DifficultyLevel,
@@ -24,8 +22,6 @@ import type {
   TemplateCategory
 } from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
-import { useSettings } from "@/lib/settings/settings-context";
-import type { AppSettings as ApiSettings } from "@/lib/settings/types";
 
 type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
 
@@ -87,20 +83,8 @@ function difficultyTone(level: PhishingTemplateResponse["difficultyLevel"]): Bad
 }
 
 export default function TemplatesPage() {
-  const { settings } = useSettings();
+  const { api } = useApi();
   const { t } = useI18n();
-
-  const apiSettings = useMemo<ApiSettings>(
-    () => ({
-      theme: "system",
-      language: "tr",
-      density: "comfortable",
-      apiBaseUrl: settings.apiBaseUrl,
-      apiToken: settings.apiToken,
-      companyId: settings.companyId
-    }),
-    [settings.apiBaseUrl, settings.apiToken, settings.companyId]
-  );
 
   const [templates, setTemplates] = useState<PhishingTemplateResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -132,8 +116,6 @@ export default function TemplatesPage() {
     allowFallbackTemplate: true
   });
 
-  const canFetch = Boolean(apiSettings.companyId && apiSettings.apiToken);
-
   const upsertTemplate = (updated: PhishingTemplateResponse) => {
     setTemplates((prev) => {
       const exists = prev.some((item) => item.id === updated.id);
@@ -145,16 +127,10 @@ export default function TemplatesPage() {
   };
 
   const fetchTemplates = useCallback(async () => {
-    if (!canFetch) {
-      return;
-    }
-
     setLoading(true);
     setError(null);
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      const response = await services.templates.list();
+      const response = await api.templates.list();
       setTemplates(response);
       setRegeneratePrompts((prev) => {
         const next = { ...prev };
@@ -180,22 +156,14 @@ export default function TemplatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiSettings, canFetch, t.common.unknownError]);
+  }, [api, t.common.unknownError]);
 
   useEffect(() => {
-    if (!canFetch) {
-      return;
-    }
-    // Trigger initial fetch when access credentials are available.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchTemplates();
-  }, [canFetch, fetchTemplates]);
+  }, [fetchTemplates]);
 
   const handleUploadReference = async () => {
-    if (!canFetch) {
-      return;
-    }
-
     setUploadReferenceError(null);
     setUploadReferenceSuccess(null);
 
@@ -206,9 +174,7 @@ export default function TemplatesPage() {
 
     setUploadingReference(true);
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      const response = await services.templates.uploadReference(selectedReferenceFile);
+      const response = await api.templates.uploadReference(selectedReferenceFile);
       setForm((prev) => ({ ...prev, referenceImageUrl: response.referenceImageUrl }));
       setUploadReferenceSuccess(t.templates.uploadReferenceSuccess);
       setSelectedReferenceFile(null);
@@ -222,9 +188,6 @@ export default function TemplatesPage() {
 
   const handleGenerateTemplate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canFetch) {
-      return;
-    }
 
     setGenerateError(null);
     setGenerateSuccess(null);
@@ -256,9 +219,7 @@ export default function TemplatesPage() {
         allowFallbackTemplate: form.allowFallbackTemplate
       };
 
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      const response = await services.templates.generate(payload);
+      const response = await api.templates.generate(payload);
       upsertTemplate(response);
       setGenerateSuccess(t.templates.generateSuccess);
       setForm((prev) => ({
@@ -280,10 +241,6 @@ export default function TemplatesPage() {
   };
 
   const handleRegenerateTemplate = async (template: PhishingTemplateResponse) => {
-    if (!canFetch) {
-      return;
-    }
-
     setTemplateActionError(null);
     setTemplateActionSuccess(null);
 
@@ -305,9 +262,7 @@ export default function TemplatesPage() {
 
     setRegeneratingTemplateId(template.id);
     try {
-      const client = new ApiClient(apiSettings);
-      const services = createApiServices(client, apiSettings.companyId);
-      const updated = await services.templates.regenerate(template.id, payload);
+      const updated = await api.templates.regenerate(template.id, payload);
       upsertTemplate(updated);
       setTemplateActionSuccess(t.templates.regenerateSuccess);
       setRegeneratePrompts((prev) => ({ ...prev, [template.id]: updated.prompt ?? prompt }));
@@ -320,7 +275,6 @@ export default function TemplatesPage() {
   };
 
   return (
-    <RequireAccess>
       <div className="space-y-4 lg:space-y-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -618,6 +572,5 @@ export default function TemplatesPage() {
           </Card>
         ) : null}
       </div>
-    </RequireAccess>
   );
 }
