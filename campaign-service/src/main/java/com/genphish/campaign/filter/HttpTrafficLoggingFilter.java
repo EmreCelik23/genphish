@@ -8,13 +8,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.ObjectUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.io.UnsupportedEncodingException;
 
 @Component
@@ -62,14 +65,15 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
         }
     }
 
-    private String getStringValue(byte[] contentAsByteArray, String characterEncoding) {
+    private String getStringValue(String contentType, byte[] contentAsByteArray, String characterEncoding) {
         if (ObjectUtils.isEmpty(contentAsByteArray)) {
             return "";
         }
+        String resolvedEncoding = resolveEncoding(contentType, characterEncoding);
         try {
-            return new String(contentAsByteArray, characterEncoding != null ? characterEncoding : "UTF-8").replaceAll("[\\r\\n\\t]+", " ");
+            return new String(contentAsByteArray, resolvedEncoding).replaceAll("[\\r\\n\\t]+", " ");
         } catch (UnsupportedEncodingException e) {
-            log.warn("Failed to parse payload with encoding: {}", characterEncoding);
+            log.warn("Failed to parse payload with encoding: {}", resolvedEncoding);
             return "[Parsing Error]";
         }
     }
@@ -86,7 +90,31 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
         if (!logPayloads) {
             return "[Payload Logging Disabled]";
         }
-        return maskSensitiveValues(getStringValue(payloadBytes, encoding));
+        return maskSensitiveValues(getStringValue(contentType, payloadBytes, encoding));
+    }
+
+    private String resolveEncoding(String contentType, String encoding) {
+        if (StringUtils.hasText(encoding)) {
+            return encoding;
+        }
+        if (contentType == null) {
+            return StandardCharsets.UTF_8.name();
+        }
+        try {
+            MediaType mediaType = MediaType.parseMediaType(contentType);
+            if (mediaType.getCharset() != null) {
+                return mediaType.getCharset().name();
+            }
+            if (isJsonMediaType(mediaType)) {
+                return StandardCharsets.UTF_8.name();
+            }
+        } catch (Exception ignored) {
+            // Fall through to UTF-8 default.
+        }
+        if (contentType.contains("application/json") || contentType.contains("+json")) {
+            return StandardCharsets.UTF_8.name();
+        }
+        return StandardCharsets.UTF_8.name();
     }
 
     private String maskSensitiveValues(String payload) {
@@ -108,7 +136,21 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
     }
 
     private boolean isLoggable(String contentType) {
-        return contentType != null &&
-                (contentType.contains("application/json") || contentType.contains("text/"));
+        if (contentType == null) {
+            return false;
+        }
+        if (contentType.contains("text/")) {
+            return true;
+        }
+        try {
+            return isJsonMediaType(MediaType.parseMediaType(contentType));
+        } catch (Exception ignored) {
+            return contentType.contains("application/json") || contentType.contains("+json");
+        }
+    }
+
+    private boolean isJsonMediaType(MediaType mediaType) {
+        String subtype = mediaType.getSubtype();
+        return MediaType.APPLICATION_JSON.includes(mediaType) || (subtype != null && subtype.contains("+json"));
     }
 }

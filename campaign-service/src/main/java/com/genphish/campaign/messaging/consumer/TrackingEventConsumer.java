@@ -1,5 +1,7 @@
 package com.genphish.campaign.messaging.consumer;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.genphish.campaign.config.KafkaConfig;
 import com.genphish.campaign.entity.TrackingEvent;
 import com.genphish.campaign.entity.enums.TrackingEventType;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -22,6 +25,7 @@ public class TrackingEventConsumer {
 
     private final TrackingEventRepository trackingEventRepository;
     private final EmployeeRepository employeeRepository;
+    private final ObjectMapper objectMapper;
 
     private static final double RISK_INCREMENT_EMAIL_OPENED = 5.0;
     private static final double RISK_INCREMENT_LINK_CLICKED = 15.0;
@@ -34,7 +38,21 @@ public class TrackingEventConsumer {
             topics = KafkaConfig.TOPIC_TRACKING_EVENTS,
             groupId = "campaign-service-group"
     )
-    public void consume(TrackingEventMessage message) {
+    public void consume(String rawMessage) {
+        TrackingEventMessage message;
+        try {
+            message = parseTrackingEvent(rawMessage);
+        } catch (Exception e) {
+            log.error("Ignoring malformed tracking event payload: {}", rawMessage, e);
+            return;
+        }
+
+        if (message.getCampaignId() == null || message.getEmployeeId() == null || message.getCompanyId() == null) {
+            log.warn("Ignoring tracking event with missing identifiers: campaignId={}, employeeId={}, companyId={}",
+                    message.getCampaignId(), message.getEmployeeId(), message.getCompanyId());
+            return;
+        }
+
         log.info("Received tracking event: {} for employee {} in campaign {}",
                 message.getEventType(), message.getEmployeeId(), message.getCampaignId());
 
@@ -109,5 +127,41 @@ public class TrackingEventConsumer {
             return LocalDateTime.now(ZoneOffset.UTC);
         }
         return LocalDateTime.ofInstant(timestamp, ZoneOffset.UTC);
+    }
+
+    private TrackingEventMessage parseTrackingEvent(String rawMessage) throws Exception {
+        JsonNode payload = objectMapper.readTree(rawMessage);
+        return TrackingEventMessage.builder()
+                .campaignId(parseUuid(payload, "campaignId"))
+                .employeeId(parseUuid(payload, "employeeId"))
+                .companyId(parseUuid(payload, "companyId"))
+                .eventType(textOrNull(payload, "eventType"))
+                .timestamp(parseInstant(textOrNull(payload, "timestamp")))
+                .userAgent(textOrNull(payload, "userAgent"))
+                .ipAddress(textOrNull(payload, "ipAddress"))
+                .build();
+    }
+
+    private UUID parseUuid(JsonNode payload, String fieldName) {
+        String raw = textOrNull(payload, fieldName);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return UUID.fromString(raw.trim());
+    }
+
+    private Instant parseInstant(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return Instant.parse(raw.trim());
+    }
+
+    private String textOrNull(JsonNode payload, String fieldName) {
+        JsonNode node = payload.get(fieldName);
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        return node.asText();
     }
 }

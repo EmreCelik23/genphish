@@ -27,7 +27,15 @@ public class AiGenerationResponseConsumer {
             topics = KafkaConfig.TOPIC_AI_GENERATION_RESPONSES,
             groupId = "campaign-service-group"
     )
-    public void consume(AiGenerationResponseEvent event) {
+    public void consume(String rawEvent) {
+        AiGenerationResponseEvent event;
+        try {
+            event = objectMapper.readValue(rawEvent, AiGenerationResponseEvent.class);
+        } catch (Exception e) {
+            log.error("Ignoring malformed AI generation response payload: {}", rawEvent, e);
+            return;
+        }
+
         log.info("Received AI generation response for template: {} - status: {}",
                 event.getTemplateId(), event.getStatus());
 

@@ -48,7 +48,7 @@ class AiGenerationResponseConsumerTest {
     }
 
     @Test
-    void consume_Success() {
+    void consume_Success() throws Exception {
         AiGenerationResponseEvent event = AiGenerationResponseEvent.builder()
                 .templateId(templateId)
                 .status(com.genphish.campaign.entity.enums.AiGenerationStatus.SUCCESS)
@@ -61,7 +61,7 @@ class AiGenerationResponseConsumerTest {
         when(phishingTemplateRepository.findById(templateId)).thenReturn(Optional.of(template));
         when(pythonServiceClient.getTemplateById(eq("mongo_789"), isNull())).thenReturn(fakeHtml);
 
-        consumer.consume(event);
+        consumer.consume(objectMapper.writeValueAsString(event));
 
         assertEquals(TemplateStatus.READY, template.getStatus());
         assertEquals("mongo_789", template.getMongoTemplateId());
@@ -74,7 +74,7 @@ class AiGenerationResponseConsumerTest {
     }
 
     @Test
-    void consume_Failure_FromAiEngine() {
+    void consume_Failure_FromAiEngine() throws Exception {
         AiGenerationResponseEvent event = AiGenerationResponseEvent.builder()
                 .templateId(templateId)
                 .status(com.genphish.campaign.entity.enums.AiGenerationStatus.FAILED)
@@ -82,7 +82,7 @@ class AiGenerationResponseConsumerTest {
 
         when(phishingTemplateRepository.findById(templateId)).thenReturn(Optional.of(template));
 
-        consumer.consume(event);
+        consumer.consume(objectMapper.writeValueAsString(event));
 
         assertEquals(TemplateStatus.FAILED, template.getStatus());
         verify(phishingTemplateRepository).save(template);
@@ -90,7 +90,7 @@ class AiGenerationResponseConsumerTest {
     }
 
     @Test
-    void consume_Success_FailsToFetchHtml() {
+    void consume_Success_FailsToFetchHtml() throws Exception {
         AiGenerationResponseEvent event = AiGenerationResponseEvent.builder()
                 .templateId(templateId)
                 .status(com.genphish.campaign.entity.enums.AiGenerationStatus.SUCCESS)
@@ -100,7 +100,7 @@ class AiGenerationResponseConsumerTest {
         when(phishingTemplateRepository.findById(templateId)).thenReturn(Optional.of(template));
         when(pythonServiceClient.getTemplateById(eq("mongo_789"), isNull())).thenReturn(null);
 
-        consumer.consume(event);
+        consumer.consume(objectMapper.writeValueAsString(event));
 
         assertEquals(TemplateStatus.FAILED, template.getStatus());
         verify(phishingTemplateRepository).save(template);

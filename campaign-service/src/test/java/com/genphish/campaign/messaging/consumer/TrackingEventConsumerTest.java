@@ -1,9 +1,9 @@
 package com.genphish.campaign.messaging.consumer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.genphish.campaign.entity.Employee;
 import com.genphish.campaign.entity.TrackingEvent;
 import com.genphish.campaign.entity.enums.TrackingEventType;
-import com.genphish.campaign.messaging.event.TrackingEventMessage;
 import com.genphish.campaign.repository.EmployeeRepository;
 import com.genphish.campaign.repository.TrackingEventRepository;
 import org.junit.jupiter.api.Test;
@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
@@ -33,6 +34,9 @@ class TrackingEventConsumerTest {
     @Mock
     private EmployeeRepository employeeRepository;
 
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
+
     @InjectMocks
     private TrackingEventConsumer consumer;
 
@@ -42,13 +46,7 @@ class TrackingEventConsumerTest {
         UUID companyId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
 
-        TrackingEventMessage message = TrackingEventMessage.builder()
-                .campaignId(campaignId)
-                .companyId(companyId)
-                .employeeId(employeeId)
-                .eventType("EMAIL_OPENED")
-                .timestamp(Instant.now())
-                .build();
+        String message = trackingPayload(campaignId, employeeId, companyId, "EMAIL_OPENED");
 
         when(trackingEventRepository.existsByCampaignIdAndEmployeeIdAndEventType(
                 campaignId, employeeId, TrackingEventType.EMAIL_OPENED)
@@ -62,13 +60,7 @@ class TrackingEventConsumerTest {
 
     @Test
     void consume_WhenEventTypeInvalid_ShouldIgnoreGracefully() {
-        TrackingEventMessage message = TrackingEventMessage.builder()
-                .campaignId(UUID.randomUUID())
-                .companyId(UUID.randomUUID())
-                .employeeId(UUID.randomUUID())
-                .eventType("NOT_A_REAL_EVENT")
-                .timestamp(Instant.now())
-                .build();
+        String message = trackingPayload(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "NOT_A_REAL_EVENT");
 
         consumer.consume(message);
 
@@ -88,13 +80,7 @@ class TrackingEventConsumerTest {
                 .riskScore(20.0)
                 .build();
 
-        TrackingEventMessage message = TrackingEventMessage.builder()
-                .campaignId(campaignId)
-                .companyId(companyId)
-                .employeeId(employeeId)
-                .eventType("EMAIL_OPENED")
-                .timestamp(Instant.now())
-                .build();
+        String message = trackingPayload(campaignId, employeeId, companyId, "EMAIL_OPENED");
 
         when(trackingEventRepository.existsByCampaignIdAndEmployeeIdAndEventType(
                 campaignId, employeeId, TrackingEventType.EMAIL_OPENED)
@@ -125,13 +111,7 @@ class TrackingEventConsumerTest {
                 .riskScore(95.0)
                 .build();
 
-        TrackingEventMessage message = TrackingEventMessage.builder()
-                .campaignId(campaignId)
-                .companyId(companyId)
-                .employeeId(employeeId)
-                .eventType("LINK_CLICKED")
-                .timestamp(Instant.now())
-                .build();
+        String message = trackingPayload(campaignId, employeeId, companyId, "LINK_CLICKED");
 
         when(trackingEventRepository.existsByCampaignIdAndEmployeeIdAndEventType(
                 campaignId, employeeId, TrackingEventType.LINK_CLICKED)
@@ -153,5 +133,16 @@ class TrackingEventConsumerTest {
         assertThat(savedTypes).containsExactlyInAnyOrder(TrackingEventType.LINK_CLICKED, TrackingEventType.EMAIL_OPENED);
         assertThat(employee.getRiskScore()).isEqualTo(100.0);
         verify(employeeRepository).save(employee);
+    }
+
+    private String trackingPayload(UUID campaignId, UUID employeeId, UUID companyId, String eventType) {
+        return String.format(
+                "{\"campaignId\":\"%s\",\"employeeId\":\"%s\",\"companyId\":\"%s\",\"eventType\":\"%s\",\"timestamp\":\"%s\"}",
+                campaignId,
+                employeeId,
+                companyId,
+                eventType,
+                Instant.now()
+        );
     }
 }

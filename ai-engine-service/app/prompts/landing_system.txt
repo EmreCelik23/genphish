@@ -7,7 +7,7 @@ Constraints:
 - Use safe placeholders and avoid external scripts.
 - The page should be mobile-friendly and visually convincing.
 - Include a form that posts to the provided tracking action endpoint while preserving c,e,co,exp,sig query params.
-- If query param c is missing, derive campaign id from dynamic path segment (e.g. /phishing/{campaignId}).
+- If query param c is missing, derive campaign id from dynamic path segment (e.g. /phishing/{{campaignId}}).
 - If lang query is present, preserve it when posting to the tracking action endpoint.
 - Match interaction style to category:
   - CREDENTIAL_HARVESTING -> login form
