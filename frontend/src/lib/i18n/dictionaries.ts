@@ -54,7 +54,10 @@ export const dictionaries = {
       theme: "Tema",
       language: "Dil",
       density: "Yoğunluk",
-      apiBaseUrl: "API Base URL",
+      apiBaseUrl: "API Bağlantı URL'i",
+      apiUrlHint: "Örn: http://localhost:8088",
+      save: "Kaydet",
+      saveSuccess: "Ayarlar kaydedildi",
       reset: "Varsayılana dön",
       sessionTitle: "Oturum Bilgisi",
       sessionCompany: "Şirket",
@@ -177,7 +180,9 @@ export const dictionaries = {
         COMPLETED: "Tamamlandı",
         FAILED: "Başarısız",
         CANCELED: "İptal"
-      }
+      },
+      autoRefreshActive: "Otomatik yenileme aktif",
+      pollingHint: "Aktif kampanya algılandı"
     },
     employees: {
       title: "Çalışanlar",
@@ -346,17 +351,20 @@ export const dictionaries = {
     },
     settings: {
       title: "Preferences",
-      subtitle: "Theme, language, and display settings",
+      subtitle: "Theme, language and appearance settings",
       theme: "Theme",
       language: "Language",
       density: "Density",
       apiBaseUrl: "API Base URL",
-      reset: "Reset defaults",
+      apiUrlHint: "e.g. http://localhost:8088",
+      save: "Save",
+      saveSuccess: "Settings saved",
+      reset: "Reset to defaults",
       sessionTitle: "Session Info",
       sessionCompany: "Company",
       sessionRole: "Role",
       sessionExpiry: "Session expiry",
-      sessionNeverExpires: "Never expires",
+      sessionNeverExpires: "Never",
       sessionLogout: "Sign out"
     },
     auth: {
@@ -469,11 +477,13 @@ export const dictionaries = {
         GENERATING: "Generating",
         READY: "Ready",
         SCHEDULED: "Scheduled",
-        IN_PROGRESS: "In progress",
+        IN_PROGRESS: "In Progress",
         COMPLETED: "Completed",
         FAILED: "Failed",
         CANCELED: "Canceled"
-      }
+      },
+      autoRefreshActive: "Auto-refresh active",
+      pollingHint: "Active campaign detected"
     },
     employees: {
       title: "Employees",

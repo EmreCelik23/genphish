@@ -18,9 +18,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Pagination } from "@/components/ui/pagination";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/api/use-api";
 import type { DashboardResponse } from "@/lib/api/types";
+import { usePagination } from "@/lib/hooks/use-pagination";
 import { useI18n } from "@/lib/i18n/i18n-context";
 
 type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
@@ -222,6 +225,8 @@ export default function DashboardPage() {
     };
   }, [data]);
 
+  const recentCampaignsPag = usePagination(data?.recentCampaigns ?? [], { defaultPageSize: 5 });
+
   return (
       <motion.div initial="hidden" animate="visible" transition={{ staggerChildren: 0.06 }} className="space-y-4 lg:space-y-6">
         <motion.div variants={itemVariants}>
@@ -376,7 +381,7 @@ export default function DashboardPage() {
               <Card className="xl:col-span-5">
                 <p className="mb-4 text-sm font-medium text-text">{t.dashboard.recentCampaigns}</p>
                 <div className="space-y-3">
-                  {(data.recentCampaigns ?? []).slice(0, 6).map((campaign) => (
+                  {recentCampaignsPag.paginated.map((campaign) => (
                     <div key={campaign.campaignId} className="rounded-xl border border-border bg-surface/50 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="truncate text-sm font-medium text-text">{campaign.campaignName}</p>
@@ -390,10 +395,38 @@ export default function DashboardPage() {
                           %{clampPercent(campaign.successRate).toFixed(1)} {t.dashboard.success}
                         </span>
                       </div>
+                      <ProgressBar
+                        value={clampPercent(campaign.successRate)}
+                        height={4}
+                        className="mt-2"
+                      />
                     </div>
                   ))}
                   {!data.recentCampaigns?.length ? <p className="text-sm text-muted">{t.dashboard.noData}</p> : null}
                 </div>
+                {recentCampaignsPag.totalPages > 1 && (
+                  <div className="mt-3">
+                    <Pagination
+                      page={recentCampaignsPag.page}
+                      totalPages={recentCampaignsPag.totalPages}
+                      rangeStart={recentCampaignsPag.rangeStart}
+                      rangeEnd={recentCampaignsPag.rangeEnd}
+                      total={recentCampaignsPag.total}
+                      pageSize={recentCampaignsPag.pageSize}
+                      hasNext={recentCampaignsPag.hasNext}
+                      hasPrev={recentCampaignsPag.hasPrev}
+                      onPageChange={recentCampaignsPag.setPage}
+                      onPageSizeChange={recentCampaignsPag.setPageSize}
+                      labels={{
+                        showing: t.pagination.showing,
+                        of: t.pagination.of,
+                        perPage: t.pagination.perPage,
+                        previous: t.pagination.previous,
+                        next: t.pagination.next
+                      }}
+                    />
+                  </div>
+                )}
               </Card>
             </motion.div>
           </>

@@ -1,14 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Save } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
@@ -17,7 +20,12 @@ export default function SettingsPage() {
   const { t } = useI18n();
   const { settings, setSettings, resetSettings } = useSettings();
   const { auth, logout } = useAuth();
+  const { toast } = useToast();
   const router = useRouter();
+
+  // Local draft for API URL (only persisted on Save)
+  const [apiUrlDraft, setApiUrlDraft] = useState(settings.apiBaseUrl);
+  const [apiUrlError, setApiUrlError] = useState<string | null>(null);
 
   const roleLabel = auth.role === "admin"
     ? t.auth.roleAdmin
@@ -34,6 +42,30 @@ export default function SettingsPage() {
   const handleLogout = () => {
     logout();
     router.push("/access");
+  };
+
+  const handleSaveApiUrl = () => {
+    const trimmed = apiUrlDraft.trim();
+    if (!trimmed) {
+      setApiUrlError(t.validation.required);
+      return;
+    }
+    try {
+      new URL(trimmed);
+    } catch {
+      setApiUrlError(t.validation.invalidUrl);
+      return;
+    }
+    setApiUrlError(null);
+    setSettings({ apiBaseUrl: trimmed });
+    toast(t.settings.saveSuccess, "success");
+  };
+
+  const handleReset = () => {
+    resetSettings();
+    setApiUrlDraft("");
+    setApiUrlError(null);
+    toast(t.settings.saveSuccess, "info");
   };
 
   return (
@@ -80,8 +112,26 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.settings.apiBaseUrl}</label>
-          <Input value={settings.apiBaseUrl} onChange={(event) => setSettings({ apiBaseUrl: event.target.value })} />
+          <FormField
+            label={t.settings.apiBaseUrl}
+            hint={t.settings.apiUrlHint}
+            error={apiUrlError ?? undefined}
+          >
+            <Input
+              value={apiUrlDraft}
+              onChange={(e) => {
+                setApiUrlDraft(e.target.value);
+                if (apiUrlError) setApiUrlError(null);
+              }}
+              placeholder="http://localhost:8088"
+            />
+          </FormField>
+          <div className="mt-3">
+            <Button onClick={handleSaveApiUrl} className="gap-2">
+              <Save className="h-4 w-4" />
+              {t.settings.save}
+            </Button>
+          </div>
         </Card>
       </div>
 
@@ -123,7 +173,7 @@ export default function SettingsPage() {
         </Card>
       ) : null}
 
-      <Button variant="ghost" onClick={resetSettings}>
+      <Button variant="ghost" onClick={handleReset}>
         {t.settings.reset}
       </Button>
     </div>

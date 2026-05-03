@@ -14,6 +14,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 import { useApi } from "@/lib/api/use-api";
 import type {
   CampaignFunnelResponse,
@@ -26,6 +27,7 @@ import type {
   TrackingEventType
 } from "@/lib/api/types";
 import { usePagination } from "@/lib/hooks/use-pagination";
+import { usePolling } from "@/lib/hooks/use-polling";
 import { useSearch } from "@/lib/hooks/use-search";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
@@ -102,6 +104,7 @@ export default function CampaignsPage() {
   const { api } = useApi();
   const { settings } = useSettings();
   const { t } = useI18n();
+  const { toast } = useToast();
   const locale = settings.language === "tr" ? "tr-TR" : "en-US";
 
   const [campaigns, setCampaigns] = useState<CampaignResponse[]>([]);
@@ -111,10 +114,6 @@ export default function CampaignsPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
   const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, string>>({});
   const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
@@ -122,7 +121,7 @@ export default function CampaignsPage() {
   const [analyticsLoadingCampaignId, setAnalyticsLoadingCampaignId] = useState<string | null>(null);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [campaignFunnels, setCampaignFunnels] = useState<Record<string, CampaignFunnelResponse>>({});
-  const [campaignEvents, setCampaignEvents] = useState<Record<string, TrackingEventResponse[]>>({});
+  const [campaignEvents, setCampaignEvents] = useState<Record<string, TrackingEventResponse[]>>({}); 
 
   const [form, setForm] = useState<CampaignFormState>({
     name: "",
@@ -166,6 +165,17 @@ export default function CampaignsPage() {
   );
 
   const pag = usePagination(filteredCampaigns, { defaultPageSize: 10 });
+
+  // ── Auto-refresh polling (GENERATING / IN_PROGRESS campaigns) ────────
+  const hasActiveCampaigns = useMemo(
+    () => campaigns.some((c) => c.status === "GENERATING" || c.status === "IN_PROGRESS"),
+    [campaigns]
+  );
+
+  const { isPolling } = usePolling(
+    useCallback(() => { void fetchCampaignData(); }, []),
+    { intervalMs: 5000, enabled: hasActiveCampaigns }
+  );
 
   // ── Delete dialog ──────────────────────────────────────────────────
   const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
@@ -254,33 +264,29 @@ export default function CampaignsPage() {
 
   const handleCreateCampaign = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    setCreateError(null);
-    setCreateSuccess(null);
-
-    const name = form.name.trim();
-    if (!name) {
-      setCreateError(t.validation.required);
-      return;
-    }
-
-    if (!form.templateId) {
-      setCreateError(t.campaigns.noReadyTemplates);
-      return;
-    }
-
-    if (form.targetingType === "DEPARTMENT" && !form.targetDepartment.trim()) {
-      setCreateError(t.validation.required);
-      return;
-    }
-
-    if (form.targetingType === "INDIVIDUAL" && form.targetEmployeeIds.length === 0) {
-      setCreateError(t.validation.required);
-      return;
-    }
-
     setCreating(true);
     try {
+      const name = form.name.trim();
+      if (!name) {
+        toast(t.validation.required, "error");
+        return;
+      }
+
+      if (!form.templateId) {
+        toast(t.campaigns.noReadyTemplates, "error");
+        return;
+      }
+
+      if (form.targetingType === "DEPARTMENT" && !form.targetDepartment.trim()) {
+        toast(t.validation.required, "error");
+        return;
+      }
+
+      if (form.targetingType === "INDIVIDUAL" && form.targetEmployeeIds.length === 0) {
+        toast(t.validation.required, "error");
+        return;
+      }
+
       const created = await api.campaigns.create({
         name,
         templateId: form.templateId,
@@ -291,7 +297,7 @@ export default function CampaignsPage() {
       });
 
       upsertCampaign(created);
-      setCreateSuccess(t.campaigns.createSuccess);
+      toast(t.campaigns.createSuccess, "success");
       setForm((prev) => ({
         ...prev,
         name: "",
@@ -301,16 +307,13 @@ export default function CampaignsPage() {
       }));
     } catch (createCampaignError) {
       const message = createCampaignError instanceof Error ? createCampaignError.message : t.common.unknownError;
-      setCreateError(message);
+      toast(message, "error");
     } finally {
       setCreating(false);
     }
   };
 
   const runCampaignAction = async (campaignId: string, action: CampaignAction) => {
-    setActionError(null);
-    setActionSuccess(null);
-
     const actionKey = `${campaignId}:${action}`;
     setPendingActionKey(actionKey);
 
@@ -319,28 +322,31 @@ export default function CampaignsPage() {
 
       if (action === "start") {
         updated = await api.campaigns.start(campaignId);
-        setActionSuccess(t.campaigns.startSuccess);
       } else if (action === "cancel") {
         updated = await api.campaigns.cancel(campaignId);
-        setActionSuccess(t.campaigns.cancelSuccess);
       } else {
         const scheduledFor = scheduleDrafts[campaignId];
         if (!scheduledFor) {
-          setActionError(`${t.campaigns.scheduledForInput} is required`);
+          toast(`${t.campaigns.scheduledForInput} is required`, "error");
           return;
         }
         updated = await api.campaigns.schedule(campaignId, { scheduledFor });
-        setActionSuccess(t.campaigns.scheduleSuccess);
       }
 
       upsertCampaign(updated);
+      toast(
+        action === "start" ? t.campaigns.startSuccess
+          : action === "schedule" ? t.campaigns.scheduleSuccess
+          : t.campaigns.cancelSuccess,
+        "success"
+      );
       setScheduleDrafts((prev) => ({
         ...prev,
         [campaignId]: toDateTimeLocalValue(updated.scheduledFor)
       }));
     } catch (campaignActionError) {
       const message = campaignActionError instanceof Error ? campaignActionError.message : t.common.unknownError;
-      setActionError(message);
+      toast(message, "error");
     } finally {
       setPendingActionKey(null);
     }
@@ -384,8 +390,6 @@ export default function CampaignsPage() {
 
   const handleDeleteCampaign = async (campaignId: string) => {
     setDeleteDialogId(null);
-    setActionError(null);
-    setActionSuccess(null);
     setDeletingCampaignId(campaignId);
 
     try {
@@ -407,10 +411,10 @@ export default function CampaignsPage() {
         setExpandedAnalyticsCampaignId(null);
       }
 
-      setActionSuccess(t.campaigns.deleteSuccess);
+      toast(t.campaigns.deleteSuccess, "success");
     } catch (deleteCampaignError) {
       const message = deleteCampaignError instanceof Error ? deleteCampaignError.message : t.common.unknownError;
-      setActionError(message);
+      toast(message, "error");
     } finally {
       setDeletingCampaignId(null);
     }
@@ -452,6 +456,12 @@ export default function CampaignsPage() {
             <Badge tone="neutral">
               {t.campaigns.total}: {campaigns.length}
             </Badge>
+            {isPolling && (
+              <Badge tone="info">
+                <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
+                {t.campaigns.autoRefreshActive}
+              </Badge>
+            )}
             <Button variant="ghost" onClick={() => void fetchCampaignData()} disabled={loading}>
               <RefreshCw className="mr-2 h-4 w-4" />
               {t.common.refresh}
@@ -561,15 +571,6 @@ export default function CampaignsPage() {
               </FormField>
             ) : null}
 
-            {createError ? (
-              <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{createError}</p>
-            ) : null}
-            {createSuccess ? (
-              <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-                {createSuccess}
-              </p>
-            ) : null}
-
             <Button type="submit" disabled={creating || !readyTemplates.length}>
               {creating ? t.campaigns.creatingAction : t.campaigns.createAction}
             </Button>
@@ -588,17 +589,6 @@ export default function CampaignsPage() {
             <Button className="mt-3" variant="danger" onClick={() => void fetchCampaignData()}>
               {t.common.retry}
             </Button>
-          </Card>
-        ) : null}
-
-        {actionError ? (
-          <Card className="border-rose-500/30">
-            <p className="text-sm text-rose-300">{actionError}</p>
-          </Card>
-        ) : null}
-        {actionSuccess ? (
-          <Card className="border-emerald-500/30">
-            <p className="text-sm text-emerald-300">{actionSuccess}</p>
           </Card>
         ) : null}
 

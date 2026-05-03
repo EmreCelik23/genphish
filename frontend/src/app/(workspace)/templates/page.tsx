@@ -14,6 +14,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 import { useApi } from "@/lib/api/use-api";
 import type {
   AiProvider,
@@ -92,19 +93,14 @@ function difficultyTone(level: PhishingTemplateResponse["difficultyLevel"]): Bad
 export default function TemplatesPage() {
   const { api } = useApi();
   const { t } = useI18n();
+  const { toast } = useToast();
 
   const [templates, setTemplates] = useState<PhishingTemplateResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [generateError, setGenerateError] = useState<string | null>(null);
-  const [generateSuccess, setGenerateSuccess] = useState<string | null>(null);
   const [uploadingReference, setUploadingReference] = useState(false);
-  const [uploadReferenceError, setUploadReferenceError] = useState<string | null>(null);
-  const [uploadReferenceSuccess, setUploadReferenceSuccess] = useState<string | null>(null);
   const [selectedReferenceFile, setSelectedReferenceFile] = useState<File | null>(null);
-  const [templateActionError, setTemplateActionError] = useState<string | null>(null);
-  const [templateActionSuccess, setTemplateActionSuccess] = useState<string | null>(null);
   const [regeneratingTemplateId, setRegeneratingTemplateId] = useState<string | null>(null);
   const [regeneratePrompts, setRegeneratePrompts] = useState<Record<string, string>>({});
   const [regenerateScopes, setRegenerateScopes] = useState<Record<string, RegenerationScope>>({});
@@ -185,11 +181,8 @@ export default function TemplatesPage() {
   }, [fetchTemplates]);
 
   const handleUploadReference = async () => {
-    setUploadReferenceError(null);
-    setUploadReferenceSuccess(null);
-
     if (!selectedReferenceFile) {
-      setUploadReferenceError(`${t.templates.selectReferenceFile} is required`);
+      toast(t.validation.required, "error");
       return;
     }
 
@@ -197,11 +190,11 @@ export default function TemplatesPage() {
     try {
       const response = await api.templates.uploadReference(selectedReferenceFile);
       setForm((prev) => ({ ...prev, referenceImageUrl: response.referenceImageUrl }));
-      setUploadReferenceSuccess(t.templates.uploadReferenceSuccess);
+      toast(t.templates.uploadReferenceSuccess, "success");
       setSelectedReferenceFile(null);
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : t.common.unknownError;
-      setUploadReferenceError(message);
+      toast(message, "error");
     } finally {
       setUploadingReference(false);
     }
@@ -210,17 +203,14 @@ export default function TemplatesPage() {
   const handleGenerateTemplate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    setGenerateError(null);
-    setGenerateSuccess(null);
-
     const name = form.name.trim();
     const prompt = form.prompt.trim();
     if (!name) {
-      setGenerateError(t.validation.required);
+      toast(t.validation.required, "error");
       return;
     }
     if (!prompt) {
-      setGenerateError(t.validation.required);
+      toast(t.validation.required, "error");
       return;
     }
 
@@ -242,7 +232,7 @@ export default function TemplatesPage() {
 
       const response = await api.templates.generate(payload);
       upsertTemplate(response);
-      setGenerateSuccess(t.templates.generateSuccess);
+      toast(t.templates.generateSuccess, "success");
       setForm((prev) => ({
         ...prev,
         name: "",
@@ -255,19 +245,16 @@ export default function TemplatesPage() {
       setRegenerateScopes((prev) => ({ ...prev, [response.id]: prev[response.id] ?? "ALL" }));
     } catch (generateTemplateError) {
       const message = generateTemplateError instanceof Error ? generateTemplateError.message : t.common.unknownError;
-      setGenerateError(message);
+      toast(message, "error");
     } finally {
       setGenerating(false);
     }
   };
 
   const handleRegenerateTemplate = async (template: PhishingTemplateResponse) => {
-    setTemplateActionError(null);
-    setTemplateActionSuccess(null);
-
     const prompt = (regeneratePrompts[template.id] ?? "").trim();
     if (!prompt) {
-      setTemplateActionError(`${t.templates.regeneratePrompt} is required`);
+      toast(`${t.templates.regeneratePrompt} is required`, "error");
       return;
     }
 
@@ -285,11 +272,11 @@ export default function TemplatesPage() {
     try {
       const updated = await api.templates.regenerate(template.id, payload);
       upsertTemplate(updated);
-      setTemplateActionSuccess(t.templates.regenerateSuccess);
+      toast(t.templates.regenerateSuccess, "success");
       setRegeneratePrompts((prev) => ({ ...prev, [template.id]: updated.prompt ?? prompt }));
     } catch (regenerateError) {
       const message = regenerateError instanceof Error ? regenerateError.message : t.common.unknownError;
-      setTemplateActionError(message);
+      toast(message, "error");
     } finally {
       setRegeneratingTemplateId(null);
     }
@@ -375,8 +362,6 @@ export default function TemplatesPage() {
                   {uploadingReference ? t.templates.uploadingReferenceAction : t.templates.uploadReferenceAction}
                 </Button>
               </div>
-              {uploadReferenceError ? <p className="mt-2 text-sm text-rose-300">{uploadReferenceError}</p> : null}
-              {uploadReferenceSuccess ? <p className="mt-2 text-sm text-emerald-300">{uploadReferenceSuccess}</p> : null}
             </div>
 
             <div className="grid gap-3 lg:grid-cols-4">
@@ -444,31 +429,12 @@ export default function TemplatesPage() {
               </div>
             </div>
 
-            {generateError ? (
-              <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{generateError}</p>
-            ) : null}
-            {generateSuccess ? (
-              <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-                {generateSuccess}
-              </p>
-            ) : null}
-
             <Button type="submit" disabled={generating}>
               {generating ? t.templates.generatingAction : t.templates.generateAction}
             </Button>
           </form>
         </Card>
 
-        {templateActionError ? (
-          <Card className="border-rose-500/30">
-            <p className="text-sm text-rose-300">{templateActionError}</p>
-          </Card>
-        ) : null}
-        {templateActionSuccess ? (
-          <Card className="border-emerald-500/30">
-            <p className="text-sm text-emerald-300">{templateActionSuccess}</p>
-          </Card>
-        ) : null}
 
         {error ? (
           <Card className="border-rose-500/30">

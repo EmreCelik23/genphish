@@ -14,6 +14,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 import { useApi } from "@/lib/api/use-api";
 import type { EmployeeResponse, EmployeeRiskProfileResponse, ImportResultResponse } from "@/lib/api/types";
 import { usePagination } from "@/lib/hooks/use-pagination";
@@ -58,6 +59,7 @@ export default function EmployeesPage() {
   const { api } = useApi();
   const { settings } = useSettings();
   const { t } = useI18n();
+  const { toast } = useToast();
 
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -70,17 +72,11 @@ export default function EmployeesPage() {
     department: ""
   });
   const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
   const [selectedImportFile, setSelectedImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResultResponse | null>(null);
 
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [deactivatingEmployeeId, setDeactivatingEmployeeId] = useState<string | null>(null);
   const [expandedProfileEmployeeId, setExpandedProfileEmployeeId] = useState<string | null>(null);
   const [profileLoadingEmployeeId, setProfileLoadingEmployeeId] = useState<string | null>(null);
@@ -137,61 +133,45 @@ export default function EmployeesPage() {
   const handleCreateEmployee = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    setCreateError(null);
-    setCreateSuccess(null);
-
     const firstName = createForm.firstName.trim();
     const lastName = createForm.lastName.trim();
     const email = createForm.email.trim();
     const department = createForm.department.trim();
 
     if (!firstName) {
-      setCreateError(t.validation.required);
+      toast(t.validation.required, "error");
       return;
     }
     if (!lastName) {
-      setCreateError(t.validation.required);
+      toast(t.validation.required, "error");
       return;
     }
     if (!email || !email.includes("@")) {
-      setCreateError(t.validation.invalidEmail);
+      toast(t.validation.invalidEmail, "error");
       return;
     }
     if (!department) {
-      setCreateError(t.validation.required);
+      toast(t.validation.required, "error");
       return;
     }
 
     setCreating(true);
     try {
-      const created = await api.employees.create({
-        firstName,
-        lastName,
-        email,
-        department
-      });
+      const created = await api.employees.create({ firstName, lastName, email, department });
       setEmployees((prev) => [created, ...prev]);
-      setCreateForm({
-        firstName: "",
-        lastName: "",
-        email: "",
-        department: ""
-      });
-      setCreateSuccess(t.employees.createSuccess);
+      setCreateForm({ firstName: "", lastName: "", email: "", department: "" });
+      toast(t.employees.createSuccess, "success");
     } catch (createEmployeeError) {
       const message = createEmployeeError instanceof Error ? createEmployeeError.message : t.common.unknownError;
-      setCreateError(message);
+      toast(message, "error");
     } finally {
       setCreating(false);
     }
   };
 
   const handleImportEmployees = async () => {
-    setImportError(null);
-    setImportSuccess(null);
-
     if (!selectedImportFile) {
-      setImportError(t.validation.required);
+      toast(t.validation.required, "error");
       return;
     }
 
@@ -199,14 +179,13 @@ export default function EmployeesPage() {
     try {
       const result = await api.employees.import(selectedImportFile);
       setImportResult(result);
-      setImportSuccess(t.employees.importSuccess);
+      toast(t.employees.importSuccess, "success");
       setSelectedImportFile(null);
-
       const updatedEmployees = await api.employees.list();
       setEmployees(updatedEmployees);
     } catch (importEmployeesError) {
       const message = importEmployeesError instanceof Error ? importEmployeesError.message : t.common.unknownError;
-      setImportError(message);
+      toast(message, "error");
     } finally {
       setImporting(false);
     }
@@ -214,17 +193,15 @@ export default function EmployeesPage() {
 
   const handleDeactivateEmployee = async (employeeId: string) => {
     setDeactivateDialogId(null);
-    setActionError(null);
-    setActionSuccess(null);
     setDeactivatingEmployeeId(employeeId);
 
     try {
       await api.employees.deactivate(employeeId);
       setEmployees((prev) => prev.map((item) => (item.id === employeeId ? { ...item, active: false } : item)));
-      setActionSuccess(t.employees.deactivateSuccess);
+      toast(t.employees.deactivateSuccess, "success");
     } catch (deactivateError) {
       const message = deactivateError instanceof Error ? deactivateError.message : t.common.unknownError;
-      setActionError(message);
+      toast(message, "error");
     } finally {
       setDeactivatingEmployeeId(null);
     }
@@ -330,15 +307,6 @@ export default function EmployeesPage() {
                 </FormField>
               </div>
 
-              {createError ? (
-                <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{createError}</p>
-              ) : null}
-              {createSuccess ? (
-                <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-                  {createSuccess}
-                </p>
-              ) : null}
-
               <Button type="submit" disabled={creating}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 {creating ? t.employees.creatingAction : t.employees.createAction}
@@ -358,15 +326,6 @@ export default function EmployeesPage() {
                 accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                 onChange={(event) => setSelectedImportFile(event.target.files?.[0] ?? null)}
               />
-
-              {importError ? (
-                <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{importError}</p>
-              ) : null}
-              {importSuccess ? (
-                <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-                  {importSuccess}
-                </p>
-              ) : null}
 
               <Button type="button" variant="ghost" onClick={() => void handleImportEmployees()} disabled={importing}>
                 <Upload className="mr-2 h-4 w-4" />
@@ -393,16 +352,6 @@ export default function EmployeesPage() {
           </Card>
         </div>
 
-        {actionError ? (
-          <Card className="border-rose-500/30">
-            <p className="text-sm text-rose-300">{actionError}</p>
-          </Card>
-        ) : null}
-        {actionSuccess ? (
-          <Card className="border-emerald-500/30">
-            <p className="text-sm text-emerald-300">{actionSuccess}</p>
-          </Card>
-        ) : null}
 
         {error ? (
           <Card className="border-rose-500/30">
