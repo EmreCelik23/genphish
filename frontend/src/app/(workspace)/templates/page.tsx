@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Languages, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
+import { Languages, RefreshCw, ShieldCheck, Sparkles, Upload } from "lucide-react";
 
 import { RequireAccess } from "@/components/layout/require-access";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,8 @@ import type {
   GenerateTemplateRequest,
   LanguageCode,
   PhishingTemplateResponse,
+  RegenerateTemplateRequest,
+  RegenerationScope,
   TemplateCategory
 } from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
@@ -106,6 +108,15 @@ export default function TemplatesPage() {
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generateSuccess, setGenerateSuccess] = useState<string | null>(null);
+  const [uploadingReference, setUploadingReference] = useState(false);
+  const [uploadReferenceError, setUploadReferenceError] = useState<string | null>(null);
+  const [uploadReferenceSuccess, setUploadReferenceSuccess] = useState<string | null>(null);
+  const [selectedReferenceFile, setSelectedReferenceFile] = useState<File | null>(null);
+  const [templateActionError, setTemplateActionError] = useState<string | null>(null);
+  const [templateActionSuccess, setTemplateActionSuccess] = useState<string | null>(null);
+  const [regeneratingTemplateId, setRegeneratingTemplateId] = useState<string | null>(null);
+  const [regeneratePrompts, setRegeneratePrompts] = useState<Record<string, string>>({});
+  const [regenerateScopes, setRegenerateScopes] = useState<Record<string, RegenerationScope>>({});
 
   const [form, setForm] = useState<TemplateFormState>({
     name: "",
@@ -123,6 +134,16 @@ export default function TemplatesPage() {
 
   const canFetch = Boolean(apiSettings.companyId && apiSettings.apiToken);
 
+  const upsertTemplate = (updated: PhishingTemplateResponse) => {
+    setTemplates((prev) => {
+      const exists = prev.some((item) => item.id === updated.id);
+      if (!exists) {
+        return [updated, ...prev];
+      }
+      return prev.map((item) => (item.id === updated.id ? updated : item));
+    });
+  };
+
   const fetchTemplates = useCallback(async () => {
     if (!canFetch) {
       return;
@@ -135,6 +156,24 @@ export default function TemplatesPage() {
       const services = createApiServices(client, apiSettings.companyId);
       const response = await services.templates.list();
       setTemplates(response);
+      setRegeneratePrompts((prev) => {
+        const next = { ...prev };
+        response.forEach((item) => {
+          if (!next[item.id]) {
+            next[item.id] = item.prompt ?? "";
+          }
+        });
+        return next;
+      });
+      setRegenerateScopes((prev) => {
+        const next = { ...prev };
+        response.forEach((item) => {
+          if (!next[item.id]) {
+            next[item.id] = "ALL";
+          }
+        });
+        return next;
+      });
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : t.common.unknownError;
       setError(message);
@@ -151,6 +190,35 @@ export default function TemplatesPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchTemplates();
   }, [canFetch, fetchTemplates]);
+
+  const handleUploadReference = async () => {
+    if (!canFetch) {
+      return;
+    }
+
+    setUploadReferenceError(null);
+    setUploadReferenceSuccess(null);
+
+    if (!selectedReferenceFile) {
+      setUploadReferenceError(`${t.templates.selectReferenceFile} is required`);
+      return;
+    }
+
+    setUploadingReference(true);
+    try {
+      const client = new ApiClient(apiSettings);
+      const services = createApiServices(client, apiSettings.companyId);
+      const response = await services.templates.uploadReference(selectedReferenceFile);
+      setForm((prev) => ({ ...prev, referenceImageUrl: response.referenceImageUrl }));
+      setUploadReferenceSuccess(t.templates.uploadReferenceSuccess);
+      setSelectedReferenceFile(null);
+    } catch (uploadError) {
+      const message = uploadError instanceof Error ? uploadError.message : t.common.unknownError;
+      setUploadReferenceError(message);
+    } finally {
+      setUploadingReference(false);
+    }
+  };
 
   const handleGenerateTemplate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -191,7 +259,7 @@ export default function TemplatesPage() {
       const client = new ApiClient(apiSettings);
       const services = createApiServices(client, apiSettings.companyId);
       const response = await services.templates.generate(payload);
-      setTemplates((prev) => [response, ...prev]);
+      upsertTemplate(response);
       setGenerateSuccess(t.templates.generateSuccess);
       setForm((prev) => ({
         ...prev,
@@ -201,11 +269,53 @@ export default function TemplatesPage() {
         aiModel: "",
         referenceImageUrl: ""
       }));
+      setRegeneratePrompts((prev) => ({ ...prev, [response.id]: response.prompt ?? payload.prompt }));
+      setRegenerateScopes((prev) => ({ ...prev, [response.id]: prev[response.id] ?? "ALL" }));
     } catch (generateTemplateError) {
       const message = generateTemplateError instanceof Error ? generateTemplateError.message : t.common.unknownError;
       setGenerateError(message);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleRegenerateTemplate = async (template: PhishingTemplateResponse) => {
+    if (!canFetch) {
+      return;
+    }
+
+    setTemplateActionError(null);
+    setTemplateActionSuccess(null);
+
+    const prompt = (regeneratePrompts[template.id] ?? "").trim();
+    if (!prompt) {
+      setTemplateActionError(`${t.templates.regeneratePrompt} is required`);
+      return;
+    }
+
+    const scope = regenerateScopes[template.id] ?? "ALL";
+    const payload: RegenerateTemplateRequest = {
+      prompt,
+      scope,
+      aiProvider: form.aiProvider,
+      aiModel: form.aiModel.trim() || undefined,
+      templateCategory: template.templateCategory,
+      referenceImageUrl: form.referenceImageUrl.trim() || undefined
+    };
+
+    setRegeneratingTemplateId(template.id);
+    try {
+      const client = new ApiClient(apiSettings);
+      const services = createApiServices(client, apiSettings.companyId);
+      const updated = await services.templates.regenerate(template.id, payload);
+      upsertTemplate(updated);
+      setTemplateActionSuccess(t.templates.regenerateSuccess);
+      setRegeneratePrompts((prev) => ({ ...prev, [template.id]: updated.prompt ?? prompt }));
+    } catch (regenerateError) {
+      const message = regenerateError instanceof Error ? regenerateError.message : t.common.unknownError;
+      setTemplateActionError(message);
+    } finally {
+      setRegeneratingTemplateId(null);
     }
   };
 
@@ -284,6 +394,23 @@ export default function TemplatesPage() {
               </div>
             </div>
 
+            <div className="rounded-xl border border-border bg-surface/40 p-3">
+              <p className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">{t.templates.selectReferenceFile}</p>
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => setSelectedReferenceFile(event.target.files?.[0] ?? null)}
+                />
+                <Button type="button" variant="ghost" onClick={() => void handleUploadReference()} disabled={uploadingReference}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  {uploadingReference ? t.templates.uploadingReferenceAction : t.templates.uploadReferenceAction}
+                </Button>
+              </div>
+              {uploadReferenceError ? <p className="mt-2 text-sm text-rose-300">{uploadReferenceError}</p> : null}
+              {uploadReferenceSuccess ? <p className="mt-2 text-sm text-emerald-300">{uploadReferenceSuccess}</p> : null}
+            </div>
+
             <div className="grid gap-3 lg:grid-cols-4">
               <div>
                 <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">
@@ -323,7 +450,10 @@ export default function TemplatesPage() {
               </div>
               <div>
                 <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.aiProviderField}</label>
-                <Select value={form.aiProvider} onChange={(event) => setForm((prev) => ({ ...prev, aiProvider: event.target.value as AiProvider }))}>
+                <Select
+                  value={form.aiProvider}
+                  onChange={(event) => setForm((prev) => ({ ...prev, aiProvider: event.target.value as AiProvider }))}
+                >
                   <option value="gemini">gemini</option>
                   <option value="openai">openai</option>
                   <option value="anthropic">anthropic</option>
@@ -367,6 +497,17 @@ export default function TemplatesPage() {
             </Button>
           </form>
         </Card>
+
+        {templateActionError ? (
+          <Card className="border-rose-500/30">
+            <p className="text-sm text-rose-300">{templateActionError}</p>
+          </Card>
+        ) : null}
+        {templateActionSuccess ? (
+          <Card className="border-emerald-500/30">
+            <p className="text-sm text-emerald-300">{templateActionSuccess}</p>
+          </Card>
+        ) : null}
 
         {error ? (
           <Card className="border-rose-500/30">
@@ -428,6 +569,48 @@ export default function TemplatesPage() {
                     <Badge tone={item.fallbackContentUsed ? "warning" : "success"}>
                       {t.templates.fallback}: {item.fallbackContentUsed ? "ON" : "OFF"}
                     </Badge>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-border bg-surface/40 p-3">
+                    <div className="grid gap-3 lg:grid-cols-3">
+                      <div className="lg:col-span-2">
+                        <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.regeneratePrompt}</label>
+                        <Textarea
+                          className="min-h-[88px]"
+                          value={regeneratePrompts[item.id] ?? ""}
+                          onChange={(event) =>
+                            setRegeneratePrompts((prev) => ({
+                              ...prev,
+                              [item.id]: event.target.value
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-xs uppercase tracking-[0.12em] text-muted">{t.templates.regenerateScope}</label>
+                        <Select
+                          value={regenerateScopes[item.id] ?? "ALL"}
+                          onChange={(event) =>
+                            setRegenerateScopes((prev) => ({
+                              ...prev,
+                              [item.id]: event.target.value as RegenerationScope
+                            }))
+                          }
+                        >
+                          <option value="ALL">{t.templates.scopeAll}</option>
+                          <option value="ONLY_EMAIL">{t.templates.scopeOnlyEmail}</option>
+                          <option value="ONLY_LANDING_PAGE">{t.templates.scopeOnlyLandingPage}</option>
+                        </Select>
+                        <Button
+                          className="mt-3 w-full"
+                          variant="ghost"
+                          onClick={() => void handleRegenerateTemplate(item)}
+                          disabled={regeneratingTemplateId !== null}
+                        >
+                          {regeneratingTemplateId === item.id ? t.templates.regeneratingAction : t.templates.regenerateAction}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}

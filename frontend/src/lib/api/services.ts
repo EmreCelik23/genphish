@@ -5,7 +5,10 @@ import {
   DashboardResponse,
   EmployeeResponse,
   GenerateTemplateRequest,
-  PhishingTemplateResponse
+  PhishingTemplateResponse,
+  RegenerateTemplateRequest,
+  ScheduleCampaignRequest,
+  UploadReferenceImageResponse
 } from "@/lib/api/types";
 
 export function createApiServices(client: ApiClient, companyId: string) {
@@ -17,12 +20,23 @@ export function createApiServices(client: ApiClient, companyId: string) {
     },
     campaigns: {
       list: () => client.get<CampaignResponse[]>(`${companyPrefix}/campaigns`),
-      create: (payload: CreateCampaignRequest) => client.post<CampaignResponse>(`${companyPrefix}/campaigns`, payload)
+      create: (payload: CreateCampaignRequest) => client.post<CampaignResponse>(`${companyPrefix}/campaigns`, payload),
+      start: (campaignId: string) => client.post<CampaignResponse>(`${companyPrefix}/campaigns/${campaignId}/start`),
+      schedule: (campaignId: string, payload: ScheduleCampaignRequest) =>
+        client.post<CampaignResponse>(`${companyPrefix}/campaigns/${campaignId}/schedule`, payload),
+      cancel: (campaignId: string) => client.post<CampaignResponse>(`${companyPrefix}/campaigns/${campaignId}/cancel`)
     },
     templates: {
       list: () => client.get<PhishingTemplateResponse[]>(`${companyPrefix}/templates`),
       generate: (payload: GenerateTemplateRequest) =>
-        client.post<PhishingTemplateResponse>(`${companyPrefix}/templates/generate`, payload)
+        client.post<PhishingTemplateResponse>(`${companyPrefix}/templates/generate`, payload),
+      regenerate: (templateId: string, payload: RegenerateTemplateRequest) =>
+        client.post<PhishingTemplateResponse>(`${companyPrefix}/templates/${templateId}/regenerate`, payload),
+      uploadReference: async (file: File) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        return client.postForm<UploadReferenceImageResponse>(`${companyPrefix}/templates/upload-reference`, formData);
+      }
     },
     employees: {
       list: () => client.get<EmployeeResponse[]>(`${companyPrefix}/employees`)

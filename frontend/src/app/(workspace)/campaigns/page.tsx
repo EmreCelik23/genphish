@@ -18,6 +18,7 @@ import { useSettings } from "@/lib/settings/settings-context";
 import type { AppSettings } from "@/lib/settings/types";
 
 type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
+type CampaignAction = "start" | "schedule" | "cancel";
 
 type CampaignFormState = {
   name: string;
@@ -44,6 +45,18 @@ function statusTone(status: CampaignResponse["status"]): BadgeTone {
     default:
       return "neutral";
   }
+}
+
+function toDateTimeLocalValue(value?: string) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const pad = (input: number) => String(input).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function CampaignListSkeleton() {
@@ -91,6 +104,10 @@ export default function CampaignsPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
+  const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState<CampaignFormState>({
     name: "",
@@ -123,6 +140,16 @@ export default function CampaignsPage() {
     [campaigns]
   );
 
+  const upsertCampaign = (updated: CampaignResponse) => {
+    setCampaigns((prev) => {
+      const exists = prev.some((item) => item.id === updated.id);
+      if (!exists) {
+        return [updated, ...prev];
+      }
+      return prev.map((item) => (item.id === updated.id ? updated : item));
+    });
+  };
+
   const fetchCampaignData = useCallback(async () => {
     if (!canFetch) {
       return;
@@ -146,6 +173,15 @@ export default function CampaignsPage() {
         ...prev,
         templateId: prev.templateId || templateList.find((item) => item.status === "READY")?.id || ""
       }));
+      setScheduleDrafts((prev) => {
+        const next = { ...prev };
+        campaignList.forEach((campaign) => {
+          if (!next[campaign.id]) {
+            next[campaign.id] = toDateTimeLocalValue(campaign.scheduledFor);
+          }
+        });
+        return next;
+      });
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : t.common.unknownError;
       setError(message);
@@ -239,7 +275,7 @@ export default function CampaignsPage() {
         ...(form.targetingType === "INDIVIDUAL" ? { targetEmployeeIds: form.targetEmployeeIds } : {})
       });
 
-      setCampaigns((prev) => [created, ...prev]);
+      upsertCampaign(created);
       setCreateSuccess(t.campaigns.createSuccess);
       setForm((prev) => ({
         ...prev,
@@ -255,6 +291,53 @@ export default function CampaignsPage() {
       setCreating(false);
     }
   };
+
+  const runCampaignAction = async (campaignId: string, action: CampaignAction) => {
+    if (!canFetch) {
+      return;
+    }
+
+    setActionError(null);
+    setActionSuccess(null);
+
+    const actionKey = `${campaignId}:${action}`;
+    setPendingActionKey(actionKey);
+
+    try {
+      const client = new ApiClient(apiSettings);
+      const services = createApiServices(client, apiSettings.companyId);
+      let updated: CampaignResponse;
+
+      if (action === "start") {
+        updated = await services.campaigns.start(campaignId);
+        setActionSuccess(t.campaigns.startSuccess);
+      } else if (action === "cancel") {
+        updated = await services.campaigns.cancel(campaignId);
+        setActionSuccess(t.campaigns.cancelSuccess);
+      } else {
+        const scheduledFor = scheduleDrafts[campaignId];
+        if (!scheduledFor) {
+          setActionError(`${t.campaigns.scheduledForInput} is required`);
+          return;
+        }
+        updated = await services.campaigns.schedule(campaignId, { scheduledFor });
+        setActionSuccess(t.campaigns.scheduleSuccess);
+      }
+
+      upsertCampaign(updated);
+      setScheduleDrafts((prev) => ({
+        ...prev,
+        [campaignId]: toDateTimeLocalValue(updated.scheduledFor)
+      }));
+    } catch (campaignActionError) {
+      const message = campaignActionError instanceof Error ? campaignActionError.message : t.common.unknownError;
+      setActionError(message);
+    } finally {
+      setPendingActionKey(null);
+    }
+  };
+
+  const isPending = (campaignId: string, action: CampaignAction) => pendingActionKey === `${campaignId}:${action}`;
 
   return (
     <RequireAccess>
@@ -413,6 +496,17 @@ export default function CampaignsPage() {
           </Card>
         ) : null}
 
+        {actionError ? (
+          <Card className="border-rose-500/30">
+            <p className="text-sm text-rose-300">{actionError}</p>
+          </Card>
+        ) : null}
+        {actionSuccess ? (
+          <Card className="border-emerald-500/30">
+            <p className="text-sm text-emerald-300">{actionSuccess}</p>
+          </Card>
+        ) : null}
+
         {loading && !campaigns.length ? (
           <Card>
             <CampaignListSkeleton />
@@ -472,6 +566,52 @@ export default function CampaignsPage() {
                         {t.campaigns.scheduledFor}: {formatDate(item.scheduledFor)}
                       </span>
                     </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-end gap-2">
+                    {item.status === "READY" ? (
+                      <>
+                        <Button
+                          onClick={() => void runCampaignAction(item.id, "start")}
+                          disabled={isPending(item.id, "start") || pendingActionKey !== null}
+                        >
+                          {isPending(item.id, "start") ? t.campaigns.startingAction : t.campaigns.startAction}
+                        </Button>
+
+                        <div className="min-w-[220px]">
+                          <label className="mb-1 block text-[11px] uppercase tracking-[0.12em] text-muted">
+                            {t.campaigns.scheduledForInput}
+                          </label>
+                          <Input
+                            type="datetime-local"
+                            value={scheduleDrafts[item.id] ?? ""}
+                            onChange={(event) =>
+                              setScheduleDrafts((prev) => ({
+                                ...prev,
+                                [item.id]: event.target.value
+                              }))
+                            }
+                          />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          onClick={() => void runCampaignAction(item.id, "schedule")}
+                          disabled={isPending(item.id, "schedule") || pendingActionKey !== null}
+                        >
+                          {isPending(item.id, "schedule") ? t.campaigns.schedulingAction : t.campaigns.scheduleAction}
+                        </Button>
+                      </>
+                    ) : null}
+
+                    {(item.status === "SCHEDULED" || item.status === "IN_PROGRESS") ? (
+                      <Button
+                        variant="danger"
+                        onClick={() => void runCampaignAction(item.id, "cancel")}
+                        disabled={isPending(item.id, "cancel") || pendingActionKey !== null}
+                      >
+                        {isPending(item.id, "cancel") ? t.campaigns.cancelingAction : t.campaigns.cancelAction}
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               ))}

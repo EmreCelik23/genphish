@@ -29,6 +29,10 @@ export class ApiClient {
     return this.request<T>("POST", path, body);
   }
 
+  postForm<T>(path: string, formData: FormData): Promise<T> {
+    return this.request<T>("POST", path, formData);
+  }
+
   put<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>("PUT", path, body);
   }
@@ -41,9 +45,12 @@ export class ApiClient {
     const base = this.settings.apiBaseUrl.replace(/\/$/, "");
     const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
-    const headers: HeadersInit = {
-      "Content-Type": "application/json"
-    };
+    const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+    const headers: Record<string, string> = {};
+
+    if (!isFormData) {
+      headers["Content-Type"] = "application/json";
+    }
 
     if (this.settings.apiToken) {
       headers.Authorization = `Bearer ${this.settings.apiToken}`;
@@ -57,7 +64,7 @@ export class ApiClient {
     const response = await fetch(url, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
       cache: "no-store"
     });
 

@@ -104,3 +104,22 @@ export type GenerateTemplateRequest = {
   aiModel?: string;
   allowFallbackTemplate?: boolean;
 };
+
+export type ScheduleCampaignRequest = {
+  scheduledFor: string;
+};
+
+export type RegenerationScope = "ALL" | "ONLY_EMAIL" | "ONLY_LANDING_PAGE";
+
+export type RegenerateTemplateRequest = {
+  prompt: string;
+  scope: RegenerationScope;
+  aiProvider?: AiProvider;
+  aiModel?: string;
+  templateCategory?: TemplateCategory;
+  referenceImageUrl?: string;
+};
+
+export type UploadReferenceImageResponse = {
+  referenceImageUrl: string;
+};
