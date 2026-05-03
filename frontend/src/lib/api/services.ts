@@ -5,6 +5,7 @@ import {
   CreateEmployeeRequest,
   DashboardResponse,
   EmployeeResponse,
+  EmployeeRiskProfileResponse,
   GenerateTemplateRequest,
   ImportResultResponse,
   PhishingTemplateResponse,
@@ -48,7 +49,9 @@ export function createApiServices(client: ApiClient, companyId: string) {
         formData.append("file", file);
         return client.postForm<ImportResultResponse>(`${companyPrefix}/employees/import`, formData);
       },
-      deactivate: (employeeId: string) => client.delete(`${companyPrefix}/employees/${employeeId}`)
+      deactivate: (employeeId: string) => client.delete(`${companyPrefix}/employees/${employeeId}`),
+      riskProfile: (employeeId: string) =>
+        client.get<EmployeeRiskProfileResponse>(`${companyPrefix}/employees/${employeeId}/risk-profile`)
     }
   };
 }

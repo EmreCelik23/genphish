@@ -137,3 +137,19 @@ export type ImportResultResponse = {
   duplicates: number;
   failed: number;
 };
+
+export type EmployeeRiskProfileResponse = {
+  employeeId: string;
+  fullName: string;
+  email: string;
+  department: string;
+  riskScore: number;
+  totalCampaigns: number;
+  emailsOpened: number;
+  linksClicked: number;
+  credentialsSubmitted: number;
+  downloadTriggered: number;
+  consentGranted: number;
+  actionsTaken: number;
+  lastPhishedAt?: string;
+};

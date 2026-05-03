@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiClient } from "@/lib/api/client";
 import { createApiServices } from "@/lib/api/services";
-import type { EmployeeResponse, ImportResultResponse } from "@/lib/api/types";
+import type { EmployeeResponse, EmployeeRiskProfileResponse, ImportResultResponse } from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
 import type { AppSettings } from "@/lib/settings/types";
@@ -88,8 +88,13 @@ export default function EmployeesPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [deactivatingEmployeeId, setDeactivatingEmployeeId] = useState<string | null>(null);
+  const [expandedProfileEmployeeId, setExpandedProfileEmployeeId] = useState<string | null>(null);
+  const [profileLoadingEmployeeId, setProfileLoadingEmployeeId] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [riskProfiles, setRiskProfiles] = useState<Record<string, EmployeeRiskProfileResponse>>({});
 
   const canFetch = Boolean(apiSettings.companyId && apiSettings.apiToken);
+  const locale = settings.language === "tr" ? "tr-TR" : "en-US";
 
   const fetchEmployees = useCallback(async () => {
     if (!canFetch) {
@@ -230,6 +235,55 @@ export default function EmployeesPage() {
     } finally {
       setDeactivatingEmployeeId(null);
     }
+  };
+
+  const handleToggleRiskProfile = async (employeeId: string) => {
+    if (!canFetch) {
+      return;
+    }
+
+    if (expandedProfileEmployeeId === employeeId) {
+      setExpandedProfileEmployeeId(null);
+      setProfileError(null);
+      return;
+    }
+
+    setExpandedProfileEmployeeId(employeeId);
+    setProfileError(null);
+
+    if (riskProfiles[employeeId]) {
+      return;
+    }
+
+    setProfileLoadingEmployeeId(employeeId);
+    try {
+      const client = new ApiClient(apiSettings);
+      const services = createApiServices(client, apiSettings.companyId);
+      const profile = await services.employees.riskProfile(employeeId);
+      setRiskProfiles((prev) => ({ ...prev, [employeeId]: profile }));
+    } catch (fetchProfileError) {
+      const message = fetchProfileError instanceof Error ? fetchProfileError.message : t.common.unknownError;
+      setProfileError(message);
+    } finally {
+      setProfileLoadingEmployeeId(null);
+    }
+  };
+
+  const formatDateTime = (value?: string) => {
+    if (!value) {
+      return t.employees.neverPhished;
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return t.employees.neverPhished;
+    }
+    return parsed.toLocaleString(locale, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
   };
 
   return (
@@ -404,6 +458,9 @@ export default function EmployeesPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge tone={item.active ? "success" : "neutral"}>{item.active ? t.employees.active : t.employees.passive}</Badge>
+                      <Button variant="ghost" onClick={() => void handleToggleRiskProfile(item.id)}>
+                        {profileLoadingEmployeeId === item.id ? t.employees.loadingProfile : t.employees.riskProfileAction}
+                      </Button>
                       {item.active ? (
                         <Button
                           variant="danger"
@@ -435,6 +492,57 @@ export default function EmployeesPage() {
                     <CircleUserRound className="h-3.5 w-3.5" />
                     <span>{item.id}</span>
                   </div>
+
+                  {expandedProfileEmployeeId === item.id ? (
+                    <div className="mt-3 rounded-xl border border-border bg-surface/40 p-3">
+                      <p className="mb-3 text-xs uppercase tracking-[0.12em] text-muted">{t.employees.profileTitle}</p>
+                      {profileError ? <p className="mb-2 text-sm text-rose-300">{profileError}</p> : null}
+                      {profileLoadingEmployeeId === item.id ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                        </div>
+                      ) : null}
+                      {profileLoadingEmployeeId !== item.id && riskProfiles[item.id] ? (
+                        <div className="grid grid-cols-2 gap-2 text-xs text-muted">
+                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            {t.employees.totalCampaigns}:{" "}
+                            <span className="text-text">{riskProfiles[item.id].totalCampaigns}</span>
+                          </div>
+                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            {t.employees.actionsTaken}:{" "}
+                            <span className="text-text">{riskProfiles[item.id].actionsTaken}</span>
+                          </div>
+                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            {t.employees.emailsOpened}:{" "}
+                            <span className="text-text">{riskProfiles[item.id].emailsOpened}</span>
+                          </div>
+                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            {t.employees.linksClicked}:{" "}
+                            <span className="text-text">{riskProfiles[item.id].linksClicked}</span>
+                          </div>
+                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            {t.employees.credentialsSubmitted}:{" "}
+                            <span className="text-text">{riskProfiles[item.id].credentialsSubmitted}</span>
+                          </div>
+                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            {t.employees.downloadTriggered}:{" "}
+                            <span className="text-text">{riskProfiles[item.id].downloadTriggered}</span>
+                          </div>
+                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            {t.employees.consentGranted}:{" "}
+                            <span className="text-text">{riskProfiles[item.id].consentGranted}</span>
+                          </div>
+                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            {t.employees.lastPhishedAt}:{" "}
+                            <span className="text-text">{formatDateTime(riskProfiles[item.id].lastPhishedAt)}</span>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

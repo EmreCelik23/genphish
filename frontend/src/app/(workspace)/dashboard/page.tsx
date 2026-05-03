@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Activity, AlertTriangle, Gauge, Megaphone, ShieldCheck, Users } from "lucide-react";
+import { Activity, AlertTriangle, Gauge, Megaphone, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -17,6 +17,7 @@ import {
 
 import { RequireAccess } from "@/components/layout/require-access";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiClient } from "@/lib/api/client";
@@ -126,48 +127,62 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   const { settings } = useSettings();
   const { t } = useI18n();
+  const canFetch = Boolean(settings.companyId && settings.apiToken);
 
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (!settings.companyId || !settings.apiToken) {
-      return;
-    }
+  const fetchDashboard = useCallback(
+    async (silent = false) => {
+      if (!canFetch) {
+        return;
+      }
 
-    let active = true;
+      if (silent) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
-    const fetchDashboard = async () => {
-      setLoading(true);
       setError(null);
       try {
         const client = new ApiClient(settings);
         const services = createApiServices(client, settings.companyId);
         const response = await services.dashboard.get();
-        if (active) {
-          setData(response);
-          setLastUpdated(new Date());
-        }
+        setData(response);
+        setLastUpdated(new Date());
       } catch (fetchError) {
-        if (active) {
-          const message = fetchError instanceof Error ? fetchError.message : "Unknown error";
-          setError(message);
-        }
+        const message = fetchError instanceof Error ? fetchError.message : t.common.unknownError;
+        setError(message);
       } finally {
-        if (active) {
+        if (silent) {
+          setRefreshing(false);
+        } else {
           setLoading(false);
         }
       }
-    };
+    },
+    [canFetch, settings, t.common.unknownError]
+  );
 
-    fetchDashboard();
+  useEffect(() => {
+    if (!canFetch) {
+      return;
+    }
+    // Initial dashboard load and periodic refresh loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchDashboard(false);
+    const intervalId = window.setInterval(() => {
+      void fetchDashboard(true);
+    }, 30000);
 
     return () => {
-      active = false;
+      window.clearInterval(intervalId);
     };
-  }, [settings]);
+  }, [canFetch, fetchDashboard]);
 
   const departmentChart = useMemo(
     () =>
@@ -229,9 +244,19 @@ export default function DashboardPage() {
               <h1 className="text-3xl font-semibold tracking-tight">{t.dashboard.title}</h1>
               <p className="mt-1 text-sm text-muted">{t.dashboard.subtitle}</p>
             </div>
-            <Badge tone="neutral" className="w-fit">
-              {t.dashboard.snapshot} • {lastUpdated ? `${lastUpdated.toLocaleTimeString()} ${t.dashboard.updatedNow}` : t.common.loading}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge tone="neutral" className="w-fit">
+                {t.dashboard.snapshot} •{" "}
+                {lastUpdated ? `${lastUpdated.toLocaleTimeString()} ${t.dashboard.updatedNow}` : t.common.loading}
+              </Badge>
+              <Badge tone="info">
+                {t.dashboard.autoRefresh} 30s
+              </Badge>
+              <Button variant="ghost" onClick={() => void fetchDashboard(true)} disabled={refreshing || loading}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {t.dashboard.refreshNow}
+              </Button>
+            </div>
           </div>
         </motion.div>
 
