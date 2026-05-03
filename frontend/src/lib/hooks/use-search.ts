@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Options<T> = {
   /** Object keys to search against. */
@@ -25,6 +25,7 @@ export function useSearch<T extends Record<string, unknown>>(items: T[], options
       }
       timerRef.current = setTimeout(() => {
         setDebouncedQuery(value);
+        timerRef.current = null;
       }, debounceMs);
     },
     [debounceMs]
@@ -35,7 +36,16 @@ export function useSearch<T extends Record<string, unknown>>(items: T[], options
     setDebouncedQuery("");
     if (timerRef.current) {
       clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
   }, []);
 
   const filtered = useMemo(() => {

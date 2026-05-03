@@ -18,10 +18,36 @@ type Props = {
 };
 
 export function FormField({ label, required, hint, error, children, className }: Props) {
+  const generatedId = React.useId();
+  const hintId = `${generatedId}-hint`;
+  const errorId = `${generatedId}-error`;
+
+  let fieldId: string | undefined;
+  let content = children;
+
+  if (React.isValidElement(children)) {
+    const childProps = children.props as {
+      id?: string;
+      "aria-describedby"?: string;
+      "aria-invalid"?: boolean;
+    };
+
+    fieldId = childProps.id ?? `${generatedId}-control`;
+    const describedBy = [childProps["aria-describedby"], error ? errorId : hint ? hintId : undefined]
+      .filter(Boolean)
+      .join(" ") || undefined;
+
+    content = React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
+      id: fieldId,
+      "aria-invalid": error ? true : childProps["aria-invalid"],
+      "aria-describedby": describedBy
+    });
+  }
+
   return (
     <div className={cn("space-y-1.5", className)}>
       {label ? (
-        <label className="block text-xs uppercase tracking-[0.12em] text-muted">
+        <label htmlFor={fieldId} className="block text-xs uppercase tracking-[0.12em] text-muted">
           {label}
           {required ? <span className="ml-0.5 text-rose-400">*</span> : null}
         </label>
@@ -33,15 +59,15 @@ export function FormField({ label, required, hint, error, children, className }:
           error && "[&>input]:border-rose-500/70 [&>select]:border-rose-500/70 [&>textarea]:border-rose-500/70 [&>input]:focus:border-rose-500 [&>select]:focus:border-rose-500 [&>textarea]:focus:border-rose-500"
         )}
       >
-        {children}
+        {content}
       </div>
 
       {error ? (
-        <p className="animate-in fade-in slide-in-from-top-1 text-xs text-rose-400 duration-200">
+        <p id={errorId} className="animate-in fade-in slide-in-from-top-1 text-xs text-rose-400 duration-200">
           {error}
         </p>
       ) : hint ? (
-        <p className="text-xs text-muted/70">{hint}</p>
+        <p id={hintId} className="text-xs text-muted/70">{hint}</p>
       ) : null}
     </div>
   );

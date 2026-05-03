@@ -74,6 +74,7 @@ temp/
 **/.turbo/
 **/.npm-cache/
 **/.pnpm-store/
+**/.vitest/
 **/.yarn/cache/
 **/.yarn/unplugged/
 **/.yarn/build-state.yml

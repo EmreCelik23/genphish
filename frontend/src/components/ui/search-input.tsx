@@ -1,6 +1,9 @@
+"use client";
+
 import { Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/i18n-context";
 
 type Props = {
   value: string;
@@ -10,6 +13,8 @@ type Props = {
 };
 
 export function SearchInput({ value, onChange, placeholder = "Search...", className }: Props) {
+  const { t } = useI18n();
+
   return (
     <div className={cn("relative", className)}>
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -25,7 +30,7 @@ export function SearchInput({ value, onChange, placeholder = "Search...", classN
           type="button"
           onClick={() => onChange("")}
           className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted transition-colors hover:text-text"
-          aria-label="Clear search"
+          aria-label={t.search.clearSearch}
         >
           <X className="h-3.5 w-3.5" />
         </button>

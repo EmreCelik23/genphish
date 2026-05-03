@@ -47,6 +47,10 @@ function applyDensity(density: AppSettings["density"]) {
   document.documentElement.dataset.density = density;
 }
 
+function applyLanguage(language: AppSettings["language"]) {
+  document.documentElement.lang = language;
+}
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setState] = useState<AppSettings>(defaultSettings);
 
@@ -57,6 +61,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setState(loaded);
     applyTheme(loaded.theme);
     applyDensity(loaded.density);
+    applyLanguage(loaded.language);
   }, []);
 
   useEffect(() => {
@@ -67,6 +72,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     applyTheme(settings.theme);
     applyDensity(settings.density);
+    applyLanguage(settings.language);
   }, [settings]);
 
   useEffect(() => {

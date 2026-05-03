@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
+import { defaultSettings } from "@/lib/settings/types";
 
 export default function SettingsPage() {
   const { t } = useI18n();
@@ -63,7 +64,7 @@ export default function SettingsPage() {
 
   const handleReset = () => {
     resetSettings();
-    setApiUrlDraft("");
+    setApiUrlDraft(defaultSettings.apiBaseUrl);
     setApiUrlError(null);
     toast(t.settings.saveSuccess, "info");
   };

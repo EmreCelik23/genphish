@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 export type PaginationState = {
   /** Current page (1-indexed). */
@@ -44,12 +44,7 @@ export function usePagination<T>(items: T[], options: Options = {}): Omit<Pagina
   const total = items.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  // Clamp page to valid range
   const clampedPage = Math.min(page, totalPages);
-  if (clampedPage !== page) {
-    // Will be corrected on next render cycle
-    setPageRaw(clampedPage);
-  }
 
   const paginated = useMemo(() => {
     const start = (clampedPage - 1) * pageSize;
@@ -59,16 +54,25 @@ export function usePagination<T>(items: T[], options: Options = {}): Omit<Pagina
   const rangeStart = total === 0 ? 0 : (clampedPage - 1) * pageSize + 1;
   const rangeEnd = Math.min(clampedPage * pageSize, total);
 
-  const setPage = (p: number) => setPageRaw(Math.max(1, Math.min(p, totalPages)));
-  const setPageSize = (size: number) => {
-    setPageSizeRaw(size);
+  const setPage = useCallback((nextPage: number) => {
+    setPageRaw(Math.max(1, Math.min(nextPage, totalPages)));
+  }, [totalPages]);
+
+  const setPageSize = useCallback((size: number) => {
+    setPageSizeRaw(Math.max(1, size));
     setPageRaw(1);
-  };
+  }, []);
 
   const hasNext = clampedPage < totalPages;
   const hasPrev = clampedPage > 1;
-  const nextPage = () => { if (hasNext) setPageRaw(clampedPage + 1); };
-  const prevPage = () => { if (hasPrev) setPageRaw(clampedPage - 1); };
+
+  const nextPage = useCallback(() => {
+    setPageRaw((prev) => Math.min(prev + 1, totalPages));
+  }, [totalPages]);
+
+  const prevPage = useCallback(() => {
+    setPageRaw((prev) => Math.max(prev - 1, 1));
+  }, []);
 
   return {
     page: clampedPage,

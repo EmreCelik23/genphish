@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 
@@ -38,8 +38,14 @@ const toneConfig: Record<ToastTone, { icon: React.ComponentType<{ className?: st
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const timeoutMapRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const dismiss = useCallback((id: string) => {
+    const timeoutId = timeoutMapRef.current.get(id);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutMapRef.current.delete(id);
+    }
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
@@ -47,10 +53,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     (message: string, tone: ToastTone = "info") => {
       const id = `toast-${++toastCounter}`;
       setToasts((prev) => [...prev, { id, message, tone }]);
-      setTimeout(() => dismiss(id), TOAST_DURATION);
+      const timeoutId = setTimeout(() => dismiss(id), TOAST_DURATION);
+      timeoutMapRef.current.set(id, timeoutId);
     },
     [dismiss]
   );
+
+  useEffect(() => {
+    const timeoutMap = timeoutMapRef.current;
+    return () => {
+      timeoutMap.forEach((timeoutId) => clearTimeout(timeoutId));
+      timeoutMap.clear();
+    };
+  }, []);
 
   const value = useMemo<ToastContextValue>(() => ({ toast }), [toast]);
 
