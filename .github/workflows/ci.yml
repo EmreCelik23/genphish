@@ -58,7 +58,7 @@ jobs:
           cache: maven
 
       - name: Run tests
-        run: ./mvnw -B test
+        run: mvn -B test
 
   tracker-service:
     name: Tracker Service Tests

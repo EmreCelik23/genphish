@@ -7,6 +7,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_validate_runtime_settings_fails_for_unsafe_prod_defaults(self) -> None:
         settings = Settings(
             APP_ENV="prod",
+            FAIL_ON_UNSAFE_DEFAULTS=True,
             SERVICE_AUTH_ENABLED=True,
             SERVICE_AUTH_TOKEN="genphish-internal-token",
             AI_PROVIDER="stub",
@@ -18,6 +19,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_validate_runtime_settings_passes_for_safe_prod_config(self) -> None:
         settings = Settings(
             APP_ENV="prod",
+            FAIL_ON_UNSAFE_DEFAULTS=True,
             SERVICE_AUTH_ENABLED=True,
             SERVICE_AUTH_TOKEN="abcdefghijklmnopqrstuvwxyz123456",
             SERVICE_TOKEN_HEADER="X-Service-Token",
