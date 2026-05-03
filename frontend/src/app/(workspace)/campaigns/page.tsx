@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, CheckCircle2, Megaphone, RefreshCw, Target, Users } from "lucide-react";
+import { BarChart3, CalendarClock, CheckCircle2, Megaphone, RefreshCw, Target, Trash2, Users } from "lucide-react";
 
 import { RequireAccess } from "@/components/layout/require-access";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,15 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiClient } from "@/lib/api/client";
 import { createApiServices } from "@/lib/api/services";
-import type { CampaignResponse, CampaignTargetingType, EmployeeResponse, PhishingTemplateResponse } from "@/lib/api/types";
+import type {
+  CampaignFunnelResponse,
+  CampaignResponse,
+  CampaignTargetingType,
+  EmployeeResponse,
+  PhishingTemplateResponse,
+  TrackingEventResponse,
+  TrackingEventType
+} from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { useSettings } from "@/lib/settings/settings-context";
 import type { AppSettings } from "@/lib/settings/types";
@@ -57,6 +65,13 @@ function toDateTimeLocalValue(value?: string) {
   }
   const pad = (input: number) => String(input).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function clampPercent(value: number) {
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, value));
 }
 
 function CampaignListSkeleton() {
@@ -108,6 +123,12 @@ export default function CampaignsPage() {
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
   const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, string>>({});
+  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
+  const [expandedAnalyticsCampaignId, setExpandedAnalyticsCampaignId] = useState<string | null>(null);
+  const [analyticsLoadingCampaignId, setAnalyticsLoadingCampaignId] = useState<string | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [campaignFunnels, setCampaignFunnels] = useState<Record<string, CampaignFunnelResponse>>({});
+  const [campaignEvents, setCampaignEvents] = useState<Record<string, TrackingEventResponse[]>>({});
 
   const [form, setForm] = useState<CampaignFormState>({
     name: "",
@@ -335,6 +356,114 @@ export default function CampaignsPage() {
     } finally {
       setPendingActionKey(null);
     }
+  };
+
+  const fetchCampaignAnalytics = useCallback(
+    async (campaignId: string) => {
+      if (!canFetch) {
+        return;
+      }
+
+      setAnalyticsError(null);
+      setAnalyticsLoadingCampaignId(campaignId);
+
+      try {
+        const client = new ApiClient(apiSettings);
+        const services = createApiServices(client, apiSettings.companyId);
+        const [funnel, events] = await Promise.all([
+          services.analytics.campaignFunnel(campaignId),
+          services.analytics.campaignEvents(campaignId)
+        ]);
+        setCampaignFunnels((prev) => ({ ...prev, [campaignId]: funnel }));
+        setCampaignEvents((prev) => ({ ...prev, [campaignId]: events }));
+      } catch (analyticsFetchError) {
+        const message = analyticsFetchError instanceof Error ? analyticsFetchError.message : t.common.unknownError;
+        setAnalyticsError(message);
+      } finally {
+        setAnalyticsLoadingCampaignId(null);
+      }
+    },
+    [apiSettings, canFetch, t.common.unknownError]
+  );
+
+  const toggleAnalytics = async (campaignId: string) => {
+    if (expandedAnalyticsCampaignId === campaignId) {
+      setExpandedAnalyticsCampaignId(null);
+      setAnalyticsError(null);
+      return;
+    }
+
+    setAnalyticsError(null);
+    setExpandedAnalyticsCampaignId(campaignId);
+    if (!campaignFunnels[campaignId] || !campaignEvents[campaignId]) {
+      await fetchCampaignAnalytics(campaignId);
+    }
+  };
+
+  const handleDeleteCampaign = async (campaignId: string) => {
+    if (!canFetch) {
+      return;
+    }
+
+    if (!window.confirm(t.campaigns.deleteConfirm)) {
+      return;
+    }
+
+    setActionError(null);
+    setActionSuccess(null);
+    setDeletingCampaignId(campaignId);
+
+    try {
+      const client = new ApiClient(apiSettings);
+      const services = createApiServices(client, apiSettings.companyId);
+      await services.campaigns.delete(campaignId);
+
+      setCampaigns((prev) => prev.filter((item) => item.id !== campaignId));
+      setCampaignFunnels((prev) => {
+        const next = { ...prev };
+        delete next[campaignId];
+        return next;
+      });
+      setCampaignEvents((prev) => {
+        const next = { ...prev };
+        delete next[campaignId];
+        return next;
+      });
+
+      if (expandedAnalyticsCampaignId === campaignId) {
+        setExpandedAnalyticsCampaignId(null);
+      }
+
+      setActionSuccess(t.campaigns.deleteSuccess);
+    } catch (deleteCampaignError) {
+      const message = deleteCampaignError instanceof Error ? deleteCampaignError.message : t.common.unknownError;
+      setActionError(message);
+    } finally {
+      setDeletingCampaignId(null);
+    }
+  };
+
+  const formatDateTime = (value?: string) => {
+    if (!value) {
+      return "-";
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return "-";
+    }
+
+    return parsed.toLocaleString(locale, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
+  const eventTypeLabel = (eventType: TrackingEventType) => {
+    return t.campaigns.eventTypes[eventType] ?? eventType;
   };
 
   const isPending = (campaignId: string, action: CampaignAction) => pendingActionKey === `${campaignId}:${action}`;
@@ -573,7 +702,7 @@ export default function CampaignsPage() {
                       <>
                         <Button
                           onClick={() => void runCampaignAction(item.id, "start")}
-                          disabled={isPending(item.id, "start") || pendingActionKey !== null}
+                          disabled={isPending(item.id, "start") || pendingActionKey !== null || deletingCampaignId !== null}
                         >
                           {isPending(item.id, "start") ? t.campaigns.startingAction : t.campaigns.startAction}
                         </Button>
@@ -596,7 +725,7 @@ export default function CampaignsPage() {
                         <Button
                           variant="ghost"
                           onClick={() => void runCampaignAction(item.id, "schedule")}
-                          disabled={isPending(item.id, "schedule") || pendingActionKey !== null}
+                          disabled={isPending(item.id, "schedule") || pendingActionKey !== null || deletingCampaignId !== null}
                         >
                           {isPending(item.id, "schedule") ? t.campaigns.schedulingAction : t.campaigns.scheduleAction}
                         </Button>
@@ -607,12 +736,134 @@ export default function CampaignsPage() {
                       <Button
                         variant="danger"
                         onClick={() => void runCampaignAction(item.id, "cancel")}
-                        disabled={isPending(item.id, "cancel") || pendingActionKey !== null}
+                        disabled={isPending(item.id, "cancel") || pendingActionKey !== null || deletingCampaignId !== null}
                       >
                         {isPending(item.id, "cancel") ? t.campaigns.cancelingAction : t.campaigns.cancelAction}
                       </Button>
                     ) : null}
+
+                    <Button
+                      variant="ghost"
+                      onClick={() => void toggleAnalytics(item.id)}
+                      disabled={analyticsLoadingCampaignId === item.id || deletingCampaignId !== null}
+                    >
+                      <BarChart3 className="mr-2 h-4 w-4" />
+                      {expandedAnalyticsCampaignId === item.id ? t.campaigns.analyticsHide : t.campaigns.analyticsAction}
+                    </Button>
+
+                    {item.status !== "IN_PROGRESS" && item.status !== "SCHEDULED" ? (
+                      <Button
+                        variant="danger"
+                        onClick={() => void handleDeleteCampaign(item.id)}
+                        disabled={deletingCampaignId !== null || pendingActionKey !== null}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {deletingCampaignId === item.id ? t.campaigns.deletingAction : t.campaigns.deleteAction}
+                      </Button>
+                    ) : null}
                   </div>
+
+                  {expandedAnalyticsCampaignId === item.id ? (
+                    <div className="mt-3 rounded-xl border border-border bg-surface/40 p-3">
+                      <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                        <p className="text-xs uppercase tracking-[0.12em] text-muted">{t.campaigns.analyticsTitle}</p>
+                        <Button
+                          variant="ghost"
+                          onClick={() => void fetchCampaignAnalytics(item.id)}
+                          disabled={analyticsLoadingCampaignId === item.id}
+                        >
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          {t.campaigns.analyticsRefresh}
+                        </Button>
+                      </div>
+
+                      {analyticsError ? <p className="mb-2 text-sm text-rose-300">{analyticsError}</p> : null}
+                      {analyticsLoadingCampaignId === item.id ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                        </div>
+                      ) : null}
+
+                      {analyticsLoadingCampaignId !== item.id && campaignFunnels[item.id] ? (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-2 text-xs text-muted lg:grid-cols-4">
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.targetCount}:{" "}
+                              <span className="text-text">{campaignFunnels[item.id].targetCount}</span>
+                            </div>
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.emailsDelivered}:{" "}
+                              <span className="text-text">{campaignFunnels[item.id].emailsDelivered}</span>
+                            </div>
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.emailsOpened}:{" "}
+                              <span className="text-text">{campaignFunnels[item.id].emailsOpened}</span>
+                            </div>
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.linksClicked}:{" "}
+                              <span className="text-text">{campaignFunnels[item.id].linksClicked}</span>
+                            </div>
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.credentialsSubmitted}:{" "}
+                              <span className="text-text">{campaignFunnels[item.id].credentialsSubmitted}</span>
+                            </div>
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.actionsTaken}:{" "}
+                              <span className="text-text">{campaignFunnels[item.id].actionsTaken}</span>
+                            </div>
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.openRate}:{" "}
+                              <span className="text-text">{clampPercent(campaignFunnels[item.id].openRate).toFixed(1)}%</span>
+                            </div>
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.clickRate}:{" "}
+                              <span className="text-text">{clampPercent(campaignFunnels[item.id].clickRate).toFixed(1)}%</span>
+                            </div>
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.submitRate}:{" "}
+                              <span className="text-text">{clampPercent(campaignFunnels[item.id].submitRate).toFixed(1)}%</span>
+                            </div>
+                            <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              {t.campaigns.actionRate}:{" "}
+                              <span className="text-text">{clampPercent(campaignFunnels[item.id].actionRate).toFixed(1)}%</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="mb-2 text-xs uppercase tracking-[0.12em] text-muted">{t.campaigns.analyticsEvents}</p>
+                            {campaignEvents[item.id]?.length ? (
+                              <div className="space-y-2">
+                                {campaignEvents[item.id].slice(0, 8).map((event) => (
+                                  <div
+                                    key={event.eventId}
+                                    className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-surface/50 px-3 py-2 text-xs text-muted lg:grid-cols-3"
+                                  >
+                                    <div>
+                                      {t.campaigns.employee}:{" "}
+                                      <span className="text-text">
+                                        {event.employeeName} ({event.employeeDepartment})
+                                      </span>
+                                    </div>
+                                    <div>
+                                      {t.campaigns.eventType}: <span className="text-text">{eventTypeLabel(event.eventType)}</span>
+                                    </div>
+                                    <div>
+                                      {t.campaigns.occurredAt}: <span className="text-text">{formatDateTime(event.occurredAt)}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted">{t.campaigns.noEvents}</p>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

@@ -1,7 +1,10 @@
 import { ApiClient } from "@/lib/api/client";
 import {
+  CampaignFunnelResponse,
   CampaignResponse,
+  CompanyResponse,
   CreateCampaignRequest,
+  CreateCompanyRequest,
   CreateEmployeeRequest,
   DashboardResponse,
   EmployeeResponse,
@@ -11,6 +14,7 @@ import {
   PhishingTemplateResponse,
   RegenerateTemplateRequest,
   ScheduleCampaignRequest,
+  TrackingEventResponse,
   UploadReferenceImageResponse
 } from "@/lib/api/types";
 
@@ -27,7 +31,14 @@ export function createApiServices(client: ApiClient, companyId: string) {
       start: (campaignId: string) => client.post<CampaignResponse>(`${companyPrefix}/campaigns/${campaignId}/start`),
       schedule: (campaignId: string, payload: ScheduleCampaignRequest) =>
         client.post<CampaignResponse>(`${companyPrefix}/campaigns/${campaignId}/schedule`, payload),
-      cancel: (campaignId: string) => client.post<CampaignResponse>(`${companyPrefix}/campaigns/${campaignId}/cancel`)
+      cancel: (campaignId: string) => client.post<CampaignResponse>(`${companyPrefix}/campaigns/${campaignId}/cancel`),
+      delete: (campaignId: string) => client.delete(`${companyPrefix}/campaigns/${campaignId}`)
+    },
+    analytics: {
+      campaignFunnel: (campaignId: string) =>
+        client.get<CampaignFunnelResponse>(`${companyPrefix}/analytics/campaigns/${campaignId}/funnel`),
+      campaignEvents: (campaignId: string) =>
+        client.get<TrackingEventResponse[]>(`${companyPrefix}/analytics/campaigns/${campaignId}/events`)
     },
     templates: {
       list: () => client.get<PhishingTemplateResponse[]>(`${companyPrefix}/templates`),
@@ -52,6 +63,16 @@ export function createApiServices(client: ApiClient, companyId: string) {
       deactivate: (employeeId: string) => client.delete(`${companyPrefix}/employees/${employeeId}`),
       riskProfile: (employeeId: string) =>
         client.get<EmployeeRiskProfileResponse>(`${companyPrefix}/employees/${employeeId}/risk-profile`)
+    }
+  };
+}
+
+export function createGlobalApiServices(client: ApiClient) {
+  return {
+    companies: {
+      list: () => client.get<CompanyResponse[]>("/api/v1/companies"),
+      create: (payload: CreateCompanyRequest) => client.post<CompanyResponse>("/api/v1/companies", payload),
+      getById: (companyId: string) => client.get<CompanyResponse>(`/api/v1/companies/${companyId}`)
     }
   };
 }

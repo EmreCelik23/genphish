@@ -37,6 +37,12 @@ export type TemplateType = "STATIC" | "AI_GENERATED";
 export type DifficultyLevel = "AMATEUR" | "PROFESSIONAL";
 export type LanguageCode = "TR" | "EN";
 export type AiProvider = "openai" | "anthropic" | "gemini" | "stub";
+export type TrackingEventType =
+  | "EMAIL_OPENED"
+  | "LINK_CLICKED"
+  | "CREDENTIALS_SUBMITTED"
+  | "DOWNLOAD_TRIGGERED"
+  | "CONSENT_GRANTED";
 
 export type CampaignResponse = {
   id: string;
@@ -82,6 +88,18 @@ export type EmployeeResponse = {
   createdAt: string;
 };
 
+export type CompanyResponse = {
+  id: string;
+  name: string;
+  domain: string;
+  createdAt: string;
+};
+
+export type CreateCompanyRequest = {
+  name: string;
+  domain: string;
+};
+
 export type CreateCampaignRequest = {
   name: string;
   targetingType: CampaignTargetingType;
@@ -89,6 +107,31 @@ export type CreateCampaignRequest = {
   targetEmployeeIds?: string[];
   templateId: string;
   qrCodeEnabled: boolean;
+};
+
+export type CampaignFunnelResponse = {
+  campaignId: string;
+  targetCount: number;
+  emailsDelivered: number;
+  emailsOpened: number;
+  linksClicked: number;
+  credentialsSubmitted: number;
+  downloadTriggered: number;
+  consentGranted: number;
+  actionsTaken: number;
+  openRate: number;
+  clickRate: number;
+  submitRate: number;
+  actionRate: number;
+};
+
+export type TrackingEventResponse = {
+  eventId: string;
+  employeeId: string;
+  employeeName: string;
+  employeeDepartment: string;
+  eventType: TrackingEventType;
+  occurredAt: string;
 };
 
 export type GenerateTemplateRequest = {
