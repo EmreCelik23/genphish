@@ -95,42 +95,75 @@ export class ApiClient {
       headers["X-Company-Id"] = this.config.companyId;
     }
 
-    const response = await fetch(url, {
+    const fetchOpts: RequestInit = {
       method,
       headers,
       body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
       cache: "no-store"
-    });
+    };
 
-    if (!response.ok) {
-      const text = await response.text();
-      let parsed: unknown = text;
+    // ── Retry logic (GET only, idempotent safe) ───────────────────────
+    const maxAttempts = method === "GET" ? 3 : 1;
+    const retryableStatuses = new Set([429, 502, 503, 504]);
+
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        parsed = text ? JSON.parse(text) : undefined;
-      } catch {
-        parsed = text;
-      }
+        const response = await fetch(url, fetchOpts);
 
-      // ── Error interceptors ─────────────────────────────────
-      if (response.status === 401) {
-        this.config.onUnauthorized?.();
-      }
-      if (response.status === 403) {
-        this.config.onForbidden?.(parsed);
-      }
+        if (!response.ok) {
+          // Retry on transient server errors (GET only)
+          if (method === "GET" && retryableStatuses.has(response.status) && attempt < maxAttempts) {
+            await sleep(Math.pow(2, attempt - 1) * 1000); // 1s, 2s
+            continue;
+          }
 
-      throw new ApiError(response.status, `Request failed (${response.status})`, parsed);
+          const text = await response.text();
+          let parsed: unknown = text;
+          try {
+            parsed = text ? JSON.parse(text) : undefined;
+          } catch {
+            parsed = text;
+          }
+
+          // ── Error interceptors ─────────────────────────────────
+          if (response.status === 401) {
+            this.config.onUnauthorized?.();
+          }
+          if (response.status === 403) {
+            this.config.onForbidden?.(parsed);
+          }
+
+          throw new ApiError(response.status, `Request failed (${response.status})`, parsed);
+        }
+
+        if (response.status === 204) {
+          return undefined as T;
+        }
+
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!contentType.includes("application/json")) {
+          return undefined as T;
+        }
+
+        return (await response.json()) as T;
+
+      } catch (err) {
+        // Retry on network errors (TypeError: failed to fetch) for GET
+        if (method === "GET" && err instanceof TypeError && attempt < maxAttempts) {
+          lastError = err;
+          await sleep(Math.pow(2, attempt - 1) * 1000);
+          continue;
+        }
+        throw err;
+      }
     }
 
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("application/json")) {
-      return undefined as T;
-    }
-
-    return (await response.json()) as T;
+    throw lastError;
   }
 }
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+

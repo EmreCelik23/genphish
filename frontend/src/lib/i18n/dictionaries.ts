@@ -18,6 +18,7 @@ export const dictionaries = {
       retry: "Tekrar dene",
       refresh: "Yenile",
       confirm: "Onayla",
+      actions: "Aksiyonlar",
       unknownError: "Bilinmeyen hata",
       notConfigured: "Önce oturum aç",
       goAccess: "Giriş sayfasına git"
@@ -226,7 +227,10 @@ export const dictionaries = {
       department: "Departman",
       riskScore: "Risk puanı",
       active: "Aktif",
-      passive: "Pasif"
+      passive: "Pasif",
+      nameHeader: "İsim",
+      emailHeader: "E-posta",
+      statusHeader: "Durum"
     },
     templates: {
       title: "Template Studio",
@@ -319,6 +323,7 @@ export const dictionaries = {
       retry: "Retry",
       refresh: "Refresh",
       confirm: "Confirm",
+      actions: "Actions",
       unknownError: "Unknown error",
       notConfigured: "Please sign in first",
       goAccess: "Go to sign in"
@@ -527,7 +532,10 @@ export const dictionaries = {
       department: "Department",
       riskScore: "Risk score",
       active: "Active",
-      passive: "Passive"
+      passive: "Passive",
+      nameHeader: "Name",
+      emailHeader: "Email",
+      statusHeader: "Status"
     },
     templates: {
       title: "Template Studio",

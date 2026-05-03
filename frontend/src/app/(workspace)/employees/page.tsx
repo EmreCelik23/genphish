@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { CircleUserRound, RefreshCw, ShieldAlert, Upload, UserPlus, UserX, UsersRound } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { useApi } from "@/lib/api/use-api";
 import type { EmployeeResponse, EmployeeRiskProfileResponse, ImportResultResponse } from "@/lib/api/types";
@@ -413,106 +414,117 @@ export default function EmployeesPage() {
               <EmptyState icon={UsersRound} title={t.search.noResults} />
             ) : (
               <>
-            <div className="space-y-3">
-              {pag.paginated.map((item) => (
-                <div key={item.id} className="rounded-xl border border-border bg-surface/50 p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-text">
-                        {item.firstName} {item.lastName}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">{item.email}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge tone={item.active ? "success" : "neutral"}>{item.active ? t.employees.active : t.employees.passive}</Badge>
-                      <Button variant="ghost" onClick={() => void handleToggleRiskProfile(item.id)}>
-                        {profileLoadingEmployeeId === item.id ? t.employees.loadingProfile : t.employees.riskProfileAction}
-                      </Button>
-                      {item.active ? (
-                        <Button
-                          variant="danger"
-                          onClick={() => setDeactivateDialogId(item.id)}
-                          disabled={deactivatingEmployeeId !== null}
-                        >
-                          <UserX className="mr-2 h-4 w-4" />
-                          {deactivatingEmployeeId === item.id ? t.employees.deactivatingAction : t.employees.deactivateAction}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-muted lg:grid-cols-2">
-                    <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/40 px-3 py-2">
-                      <UsersRound className="h-3.5 w-3.5 text-accent" />
-                      <span>
-                        {t.employees.department}: {item.department}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/40 px-3 py-2">
-                      <ShieldAlert className="h-3.5 w-3.5 text-accent" />
-                      <span className="mr-auto">{t.employees.riskScore}</span>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell header>{t.employees.nameHeader || "İsim"}</TableCell>
+                  <TableCell header>{t.employees.emailHeader || "E-posta"}</TableCell>
+                  <TableCell header>{t.employees.department}</TableCell>
+                  <TableCell header>{t.employees.riskScore}</TableCell>
+                  <TableCell header>{t.employees.statusHeader || "Durum"}</TableCell>
+                  <TableCell header align="right">{t.common.actions}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+              {pag.paginated.map((item, index) => (
+                <React.Fragment key={item.id}>
+                  <TableRow index={index}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{item.firstName} {item.lastName}</span>
+                        <span className="text-[10px] text-muted">{item.id}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted">{item.email}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <UsersRound className="h-3.5 w-3.5 text-accent" />
+                        {item.department}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <Badge tone={riskTone(item.riskScore)}>{item.riskScore}</Badge>
-                    </div>
-                  </div>
-
-                  <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
-                    <CircleUserRound className="h-3.5 w-3.5" />
-                    <span>{item.id}</span>
-                  </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge tone={item.active ? "success" : "neutral"}>{item.active ? t.employees.active : t.employees.passive}</Badge>
+                    </TableCell>
+                    <TableCell align="right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="ghost" onClick={() => void handleToggleRiskProfile(item.id)}>
+                          {profileLoadingEmployeeId === item.id ? t.employees.loadingProfile : t.employees.riskProfileAction}
+                        </Button>
+                        {item.active ? (
+                          <Button
+                            variant="danger"
+                            onClick={() => setDeactivateDialogId(item.id)}
+                            disabled={deactivatingEmployeeId !== null}
+                          >
+                            <UserX className="mr-2 h-4 w-4" />
+                            {deactivatingEmployeeId === item.id ? t.employees.deactivatingAction : t.employees.deactivateAction}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
 
                   {expandedProfileEmployeeId === item.id ? (
-                    <div className="mt-3 rounded-xl border border-border bg-surface/40 p-3">
-                      <p className="mb-3 text-xs uppercase tracking-[0.12em] text-muted">{t.employees.profileTitle}</p>
-                      {profileError ? <p className="mb-2 text-sm text-rose-300">{profileError}</p> : null}
-                      {profileLoadingEmployeeId === item.id ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          <Skeleton className="h-8 w-full" />
-                          <Skeleton className="h-8 w-full" />
-                          <Skeleton className="h-8 w-full" />
-                          <Skeleton className="h-8 w-full" />
+                    <TableRow>
+                      <TableCell colSpan={6} className="bg-surface/20 p-0">
+                        <div className="border-t border-border/50 p-4">
+                          <p className="mb-3 text-xs uppercase tracking-[0.12em] text-muted">{t.employees.profileTitle}</p>
+                          {profileError ? <p className="mb-2 text-sm text-rose-300">{profileError}</p> : null}
+                          {profileLoadingEmployeeId === item.id ? (
+                            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                              <Skeleton className="h-8 w-full" />
+                              <Skeleton className="h-8 w-full" />
+                              <Skeleton className="h-8 w-full" />
+                              <Skeleton className="h-8 w-full" />
+                            </div>
+                          ) : null}
+                          {profileLoadingEmployeeId !== item.id && riskProfiles[item.id] ? (
+                            <div className="grid grid-cols-2 gap-2 text-xs text-muted lg:grid-cols-4">
+                              <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                                {t.employees.totalCampaigns}:{" "}
+                                <span className="text-text">{riskProfiles[item.id].totalCampaigns}</span>
+                              </div>
+                              <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                                {t.employees.actionsTaken}:{" "}
+                                <span className="text-text">{riskProfiles[item.id].actionsTaken}</span>
+                              </div>
+                              <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                                {t.employees.emailsOpened}:{" "}
+                                <span className="text-text">{riskProfiles[item.id].emailsOpened}</span>
+                              </div>
+                              <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                                {t.employees.linksClicked}:{" "}
+                                <span className="text-text">{riskProfiles[item.id].linksClicked}</span>
+                              </div>
+                              <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                                {t.employees.credentialsSubmitted}:{" "}
+                                <span className="text-text">{riskProfiles[item.id].credentialsSubmitted}</span>
+                              </div>
+                              <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                                {t.employees.downloadTriggered}:{" "}
+                                <span className="text-text">{riskProfiles[item.id].downloadTriggered}</span>
+                              </div>
+                              <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                                {t.employees.consentGranted}:{" "}
+                                <span className="text-text">{riskProfiles[item.id].consentGranted}</span>
+                              </div>
+                              <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                                {t.employees.lastPhishedAt}:{" "}
+                                <span className="text-text">{formatDateTime(riskProfiles[item.id].lastPhishedAt)}</span>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
-                      {profileLoadingEmployeeId !== item.id && riskProfiles[item.id] ? (
-                        <div className="grid grid-cols-2 gap-2 text-xs text-muted">
-                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
-                            {t.employees.totalCampaigns}:{" "}
-                            <span className="text-text">{riskProfiles[item.id].totalCampaigns}</span>
-                          </div>
-                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
-                            {t.employees.actionsTaken}:{" "}
-                            <span className="text-text">{riskProfiles[item.id].actionsTaken}</span>
-                          </div>
-                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
-                            {t.employees.emailsOpened}:{" "}
-                            <span className="text-text">{riskProfiles[item.id].emailsOpened}</span>
-                          </div>
-                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
-                            {t.employees.linksClicked}:{" "}
-                            <span className="text-text">{riskProfiles[item.id].linksClicked}</span>
-                          </div>
-                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
-                            {t.employees.credentialsSubmitted}:{" "}
-                            <span className="text-text">{riskProfiles[item.id].credentialsSubmitted}</span>
-                          </div>
-                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
-                            {t.employees.downloadTriggered}:{" "}
-                            <span className="text-text">{riskProfiles[item.id].downloadTriggered}</span>
-                          </div>
-                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
-                            {t.employees.consentGranted}:{" "}
-                            <span className="text-text">{riskProfiles[item.id].consentGranted}</span>
-                          </div>
-                          <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
-                            {t.employees.lastPhishedAt}:{" "}
-                            <span className="text-text">{formatDateTime(riskProfiles[item.id].lastPhishedAt)}</span>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
+                      </TableCell>
+                    </TableRow>
                   ) : null}
-                </div>
+                </React.Fragment>
               ))}
-            </div>
+              </TableBody>
+            </Table>
 
             {/* Pagination */}
             <div className="mt-4">
